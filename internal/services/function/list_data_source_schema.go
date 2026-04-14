@@ -45,6 +45,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 					listvalidator.ValueStringsAre(
 						stringvalidator.OneOfCaseInsensitive(
 							"transform",
+							"extract",
 							"route",
 							"send",
 							"split",
@@ -112,11 +113,12 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							Computed:    true,
 						},
 						"type": schema.StringAttribute{
-							Description: `Available values: "transform", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+							Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
 							Computed:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOfCaseInsensitive(
 									"transform",
+									"extract",
 									"analyze",
 									"route",
 									"send",
