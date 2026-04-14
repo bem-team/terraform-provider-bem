@@ -42,11 +42,12 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Required:    true,
 			},
 			"type": schema.StringAttribute{
-				Description: `Available values: "transform", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+				Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
 						"transform",
+						"extract",
 						"analyze",
 						"route",
 						"send",
@@ -281,7 +282,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				CustomType:  jsontypes.NormalizedType{},
 			},
 			"function": schema.SingleNestedAttribute{
-				Description: "A function that delivers workflow outputs to an external destination.\nSend functions receive the output of an upstream workflow node and forward it\nto a webhook, S3 bucket, or Google Drive folder.",
+				Description: "A function that extracts structured JSON from documents and images.\nAccepts a wide range of input types including PDFs, images, spreadsheets, emails, and more.",
 				Computed:    true,
 				CustomType:  customfield.NewNestedObjectType[FunctionFunctionModel](ctx),
 				Attributes: map[string]schema.Attribute{
@@ -311,11 +312,12 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"type": schema.StringAttribute{
-						Description: `Available values: "transform", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+						Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
 								"transform",
+								"extract",
 								"analyze",
 								"route",
 								"send",
