@@ -19,6 +19,7 @@ type FunctionModel struct {
 	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`
 	DestinationType         types.String                                    `tfsdk:"destination_type" json:"destinationType,optional,no_refresh"`
 	DisplayName             types.String                                    `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
+	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional,no_refresh"`
 	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
@@ -116,6 +117,7 @@ type FunctionFunctionModel struct {
 	DisplayName             types.String                                                           `tfsdk:"display_name" json:"displayName,computed"`
 	Tags                    customfield.List[types.String]                                         `tfsdk:"tags" json:"tags,computed"`
 	UsedInWorkflows         customfield.NestedObjectList[FunctionFunctionUsedInWorkflowsModel]     `tfsdk:"used_in_workflows" json:"usedInWorkflows,computed"`
+	EnableBoundingBoxes     types.Bool                                                             `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	Description             types.String                                                           `tfsdk:"description" json:"description,computed"`
 	Routes                  customfield.NestedObjectList[FunctionFunctionRoutesModel]              `tfsdk:"routes" json:"routes,computed"`
 	DestinationType         types.String                                                           `tfsdk:"destination_type" json:"destinationType,computed"`

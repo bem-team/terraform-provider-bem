@@ -77,6 +77,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Display name of function. Human-readable name to help you identify the function.",
 				Optional:    true,
 			},
+			"enable_bounding_boxes": schema.BoolAttribute{
+				Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted. Enabling this automatically configures the function to use the bounding\nbox model. Disabling resets to the default.",
+				Optional:    true,
+			},
 			"google_drive_folder_id": schema.StringAttribute{
 				Description: "Google Drive folder ID. Required when destinationType is google_drive. Managed via Paragon OAuth.",
 				Optional:    true,
@@ -471,6 +475,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								},
 							},
 						},
+					},
+					"enable_bounding_boxes": schema.BoolAttribute{
+						Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
+						Computed:    true,
 					},
 					"description": schema.StringAttribute{
 						Description: "Description of router. Can be used to provide additional context on router's purpose and expected inputs.",

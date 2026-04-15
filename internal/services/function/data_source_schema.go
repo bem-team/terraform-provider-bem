@@ -223,6 +223,10 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 							},
 						},
 					},
+					"enable_bounding_boxes": schema.BoolAttribute{
+						Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
+						Computed:    true,
+					},
 					"description": schema.StringAttribute{
 						Description: "Description of router. Can be used to provide additional context on router's purpose and expected inputs.",
 						Computed:    true,
