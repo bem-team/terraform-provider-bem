@@ -92,6 +92,7 @@ type FunctionFunctionDataSourceModel struct {
 	Tags                    customfield.List[types.String]                                                   `tfsdk:"tags" json:"tags,computed"`
 	UsedInWorkflows         customfield.NestedObjectList[FunctionFunctionUsedInWorkflowsDataSourceModel]     `tfsdk:"used_in_workflows" json:"usedInWorkflows,computed"`
 	EnableBoundingBoxes     types.Bool                                                                       `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
+	PreCount                types.Bool                                                                       `tfsdk:"pre_count" json:"preCount,computed"`
 	Description             types.String                                                                     `tfsdk:"description" json:"description,computed"`
 	Routes                  customfield.NestedObjectList[FunctionFunctionRoutesDataSourceModel]              `tfsdk:"routes" json:"routes,computed"`
 	DestinationType         types.String                                                                     `tfsdk:"destination_type" json:"destinationType,computed"`

@@ -23,6 +23,7 @@ type FunctionModel struct {
 	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
+	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,optional,no_refresh"`
 	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh"`
 	S3Prefix                types.String                                    `tfsdk:"s3_prefix" json:"s3Prefix,optional,no_refresh"`
 	ShapingSchema           types.String                                    `tfsdk:"shaping_schema" json:"shapingSchema,optional,no_refresh"`
@@ -118,6 +119,7 @@ type FunctionFunctionModel struct {
 	Tags                    customfield.List[types.String]                                         `tfsdk:"tags" json:"tags,computed"`
 	UsedInWorkflows         customfield.NestedObjectList[FunctionFunctionUsedInWorkflowsModel]     `tfsdk:"used_in_workflows" json:"usedInWorkflows,computed"`
 	EnableBoundingBoxes     types.Bool                                                             `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
+	PreCount                types.Bool                                                             `tfsdk:"pre_count" json:"preCount,computed"`
 	Description             types.String                                                           `tfsdk:"description" json:"description,computed"`
 	Routes                  customfield.NestedObjectList[FunctionFunctionRoutesModel]              `tfsdk:"routes" json:"routes,computed"`
 	DestinationType         types.String                                                           `tfsdk:"destination_type" json:"destinationType,computed"`

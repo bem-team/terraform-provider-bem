@@ -96,6 +96,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Name of output schema object.",
 				Optional:    true,
 			},
+			"pre_count": schema.BoolAttribute{
+				Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency. Compatible with\n`enableBoundingBoxes`.",
+				Optional:    true,
+			},
 			"s3_bucket": schema.StringAttribute{
 				Description: "S3 bucket to upload the payload to. Required when destinationType is s3.",
 				Optional:    true,
@@ -478,6 +482,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					},
 					"enable_bounding_boxes": schema.BoolAttribute{
 						Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
+						Computed:    true,
+					},
+					"pre_count": schema.BoolAttribute{
+						Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency.",
 						Computed:    true,
 					},
 					"description": schema.StringAttribute{
