@@ -6,11 +6,14 @@ import (
 	"context"
 
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -55,6 +58,11 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								},
 							},
 						},
+						"metadata": schema.StringAttribute{
+							Description: "Opaque free-form JSON object attached to this node. Stored and returned\nverbatim; the server does not interpret it. Intended for client-side\nconcerns such as canvas display properties (position, color, collapsed\nstate, etc.).",
+							Optional:    true,
+							CustomType:  jsontypes.NormalizedType{},
+						},
 						"name": schema.StringAttribute{
 							Description: "Name for this call site. Must be unique within the workflow version.\nDefaults to the function's own name when omitted.",
 							Optional:    true,
@@ -70,6 +78,44 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Tags to categorize and organize the workflow.",
 				Optional:    true,
 				ElementType: types.StringType,
+			},
+			"connectors": schema.ListNestedAttribute{
+				Description: "Connectors to attach to the workflow at creation. If any entry fails to\nprovision, the entire workflow creation is rolled back.",
+				Optional:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Description: "Human-friendly connector name.",
+							Required:    true,
+						},
+						"type": schema.StringAttribute{
+							Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+							Required:    true,
+							Validators: []validator.String{
+								stringvalidator.OneOfCaseInsensitive("paragon"),
+							},
+						},
+						"connector_id": schema.StringAttribute{
+							Description: "Present → update. Absent → create.",
+							Optional:    true,
+						},
+						"paragon": schema.SingleNestedAttribute{
+							Description: "Request-side config block for a Paragon connector. Fields absent on update are unchanged.",
+							Optional:    true,
+							Attributes: map[string]schema.Attribute{
+								"configuration": schema.StringAttribute{
+									Description: "Opaque per-integration configuration. Required on create.",
+									Optional:    true,
+									CustomType:  jsontypes.NormalizedType{},
+								},
+								"integration": schema.StringAttribute{
+									Description: "Paragon integration key. Required on create.",
+									Optional:    true,
+								},
+							},
+						},
+					},
+				},
 			},
 			"edges": schema.ListNestedAttribute{
 				Description: "Directed edges between nodes. Omit or leave empty for single-node workflows.",
@@ -88,12 +134,53 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 							Description: "Labelled outlet on the source node that activates this edge.\nOmit for the default (unlabelled) outlet.",
 							Optional:    true,
 						},
+						"metadata": schema.StringAttribute{
+							Description: "Opaque free-form JSON object attached to this edge. Stored and returned\nverbatim; the server does not interpret it.",
+							Optional:    true,
+							CustomType:  jsontypes.NormalizedType{},
+						},
 					},
 				},
 			},
 			"error": schema.StringAttribute{
 				Description: "Error message if the workflow retrieval failed.",
 				Computed:    true,
+			},
+			"connector_errors": schema.ListNestedAttribute{
+				Description: "Per-connector failures from the diff/apply phase. Empty or omitted when all\noperations succeeded.",
+				Computed:    true,
+				CustomType:  customfield.NewNestedObjectListType[WorkflowConnectorErrorsModel](ctx),
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"code": schema.StringAttribute{
+							Description: "Machine-readable error code.",
+							Computed:    true,
+						},
+						"message": schema.StringAttribute{
+							Description: "Human-readable error message.",
+							Computed:    true,
+						},
+						"operation": schema.StringAttribute{
+							Description: "Which diff operation was attempted.\nAvailable values: \"create\", \"update\", \"delete\".",
+							Computed:    true,
+							Validators: []validator.String{
+								stringvalidator.OneOfCaseInsensitive(
+									"create",
+									"update",
+									"delete",
+								),
+							},
+						},
+						"connector_id": schema.StringAttribute{
+							Description: "Populated for update/delete failures.",
+							Computed:    true,
+						},
+						"name": schema.StringAttribute{
+							Description: "Populated for create failures.",
+							Computed:    true,
+						},
+					},
+				},
 			},
 			"workflow": schema.SingleNestedAttribute{
 				Description: "V3 read representation of a workflow version.",
@@ -103,6 +190,50 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					"id": schema.StringAttribute{
 						Description: "Unique identifier of the workflow.",
 						Computed:    true,
+					},
+					"connectors": schema.ListNestedAttribute{
+						Description: "Connectors currently attached to this workflow. For version-scoped reads\n(`/versions/{n}`) this is always empty — connectors are current-state and\nnot part of version history.",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectListType[WorkflowWorkflowConnectorsModel](ctx),
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"connector_id": schema.StringAttribute{
+									Description: "Unique connector API ID.",
+									Computed:    true,
+								},
+								"name": schema.StringAttribute{
+									Description: "Human-friendly connector name.",
+									Computed:    true,
+								},
+								"type": schema.StringAttribute{
+									Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+									Computed:    true,
+									Validators: []validator.String{
+										stringvalidator.OneOfCaseInsensitive("paragon"),
+									},
+								},
+								"paragon": schema.SingleNestedAttribute{
+									Description: "Paragon-integration configuration on a workflow connector.",
+									Computed:    true,
+									CustomType:  customfield.NewNestedObjectType[WorkflowWorkflowConnectorsParagonModel](ctx),
+									Attributes: map[string]schema.Attribute{
+										"configuration": schema.StringAttribute{
+											Description: "Opaque per-integration configuration (e.g. `{\"folderId\": \"...\"}`).",
+											Computed:    true,
+											CustomType:  jsontypes.NormalizedType{},
+										},
+										"integration": schema.StringAttribute{
+											Description: `Paragon integration key (e.g. "googledrive").`,
+											Computed:    true,
+										},
+										"sync_id": schema.StringAttribute{
+											Description: "Paragon sync ID managed by the server. Read-only.",
+											Computed:    true,
+										},
+									},
+								},
+							},
+						},
 					},
 					"created_at": schema.StringAttribute{
 						Description: "The date and time the workflow was created.",
@@ -126,6 +257,11 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								"destination_name": schema.StringAttribute{
 									Description: "Labelled outlet on the source node, if any.",
 									Computed:    true,
+								},
+								"metadata": schema.StringAttribute{
+									Description: "Opaque free-form JSON object attached to this edge on create/update.\nReturned verbatim; never interpreted by the server.",
+									Computed:    true,
+									CustomType:  jsontypes.NormalizedType{},
 								},
 							},
 						},
@@ -166,6 +302,11 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								"name": schema.StringAttribute{
 									Description: "Name of this call site, unique within the workflow version.",
 									Computed:    true,
+								},
+								"metadata": schema.StringAttribute{
+									Description: "Opaque free-form JSON object attached to this node on create/update.\nReturned verbatim; never interpreted by the server.",
+									Computed:    true,
+									CustomType:  jsontypes.NormalizedType{},
 								},
 							},
 						},
