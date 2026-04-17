@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -69,6 +70,50 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							Description: "Unique identifier of the workflow.",
 							Computed:    true,
 						},
+						"connectors": schema.ListNestedAttribute{
+							Description: "Connectors currently attached to this workflow. For version-scoped reads\n(`/versions/{n}`) this is always empty — connectors are current-state and\nnot part of version history.",
+							Computed:    true,
+							CustomType:  customfield.NewNestedObjectListType[WorkflowsConnectorsDataSourceModel](ctx),
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"connector_id": schema.StringAttribute{
+										Description: "Unique connector API ID.",
+										Computed:    true,
+									},
+									"name": schema.StringAttribute{
+										Description: "Human-friendly connector name.",
+										Computed:    true,
+									},
+									"type": schema.StringAttribute{
+										Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+										Computed:    true,
+										Validators: []validator.String{
+											stringvalidator.OneOfCaseInsensitive("paragon"),
+										},
+									},
+									"paragon": schema.SingleNestedAttribute{
+										Description: "Paragon-integration configuration on a workflow connector.",
+										Computed:    true,
+										CustomType:  customfield.NewNestedObjectType[WorkflowsConnectorsParagonDataSourceModel](ctx),
+										Attributes: map[string]schema.Attribute{
+											"configuration": schema.StringAttribute{
+												Description: "Opaque per-integration configuration (e.g. `{\"folderId\": \"...\"}`).",
+												Computed:    true,
+												CustomType:  jsontypes.NormalizedType{},
+											},
+											"integration": schema.StringAttribute{
+												Description: `Paragon integration key (e.g. "googledrive").`,
+												Computed:    true,
+											},
+											"sync_id": schema.StringAttribute{
+												Description: "Paragon sync ID managed by the server. Read-only.",
+												Computed:    true,
+											},
+										},
+									},
+								},
+							},
+						},
 						"created_at": schema.StringAttribute{
 							Description: "The date and time the workflow was created.",
 							Computed:    true,
@@ -91,6 +136,11 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 									"destination_name": schema.StringAttribute{
 										Description: "Labelled outlet on the source node, if any.",
 										Computed:    true,
+									},
+									"metadata": schema.StringAttribute{
+										Description: "Opaque free-form JSON object attached to this edge on create/update.\nReturned verbatim; never interpreted by the server.",
+										Computed:    true,
+										CustomType:  jsontypes.NormalizedType{},
 									},
 								},
 							},
@@ -131,6 +181,11 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 									"name": schema.StringAttribute{
 										Description: "Name of this call site, unique within the workflow version.",
 										Computed:    true,
+									},
+									"metadata": schema.StringAttribute{
+										Description: "Opaque free-form JSON object attached to this node on create/update.\nReturned verbatim; never interpreted by the server.",
+										Computed:    true,
+										CustomType:  jsontypes.NormalizedType{},
 									},
 								},
 							},

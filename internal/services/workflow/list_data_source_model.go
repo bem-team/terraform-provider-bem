@@ -8,6 +8,7 @@ import (
 	"github.com/bem-team/bem-go-sdk"
 	"github.com/bem-team/bem-go-sdk/packages/param"
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -80,29 +81,45 @@ func (m *WorkflowsDataSourceModel) toListParams(_ context.Context) (params bem.W
 }
 
 type WorkflowsItemsDataSourceModel struct {
-	ID           types.String                                                `tfsdk:"id" json:"id,computed"`
-	CreatedAt    timetypes.RFC3339                                           `tfsdk:"created_at" json:"createdAt,computed" format:"date-time"`
-	Edges        customfield.NestedObjectList[WorkflowsEdgesDataSourceModel] `tfsdk:"edges" json:"edges,computed"`
-	MainNodeName types.String                                                `tfsdk:"main_node_name" json:"mainNodeName,computed"`
-	Name         types.String                                                `tfsdk:"name" json:"name,computed"`
-	Nodes        customfield.NestedObjectList[WorkflowsNodesDataSourceModel] `tfsdk:"nodes" json:"nodes,computed"`
-	UpdatedAt    timetypes.RFC3339                                           `tfsdk:"updated_at" json:"updatedAt,computed" format:"date-time"`
-	VersionNum   types.Int64                                                 `tfsdk:"version_num" json:"versionNum,computed"`
-	Audit        customfield.NestedObject[WorkflowsAuditDataSourceModel]     `tfsdk:"audit" json:"audit,computed"`
-	DisplayName  types.String                                                `tfsdk:"display_name" json:"displayName,computed"`
-	EmailAddress types.String                                                `tfsdk:"email_address" json:"emailAddress,computed"`
-	Tags         customfield.List[types.String]                              `tfsdk:"tags" json:"tags,computed"`
+	ID           types.String                                                     `tfsdk:"id" json:"id,computed"`
+	Connectors   customfield.NestedObjectList[WorkflowsConnectorsDataSourceModel] `tfsdk:"connectors" json:"connectors,computed"`
+	CreatedAt    timetypes.RFC3339                                                `tfsdk:"created_at" json:"createdAt,computed" format:"date-time"`
+	Edges        customfield.NestedObjectList[WorkflowsEdgesDataSourceModel]      `tfsdk:"edges" json:"edges,computed"`
+	MainNodeName types.String                                                     `tfsdk:"main_node_name" json:"mainNodeName,computed"`
+	Name         types.String                                                     `tfsdk:"name" json:"name,computed"`
+	Nodes        customfield.NestedObjectList[WorkflowsNodesDataSourceModel]      `tfsdk:"nodes" json:"nodes,computed"`
+	UpdatedAt    timetypes.RFC3339                                                `tfsdk:"updated_at" json:"updatedAt,computed" format:"date-time"`
+	VersionNum   types.Int64                                                      `tfsdk:"version_num" json:"versionNum,computed"`
+	Audit        customfield.NestedObject[WorkflowsAuditDataSourceModel]          `tfsdk:"audit" json:"audit,computed"`
+	DisplayName  types.String                                                     `tfsdk:"display_name" json:"displayName,computed"`
+	EmailAddress types.String                                                     `tfsdk:"email_address" json:"emailAddress,computed"`
+	Tags         customfield.List[types.String]                                   `tfsdk:"tags" json:"tags,computed"`
+}
+
+type WorkflowsConnectorsDataSourceModel struct {
+	ConnectorID types.String                                                        `tfsdk:"connector_id" json:"connectorID,computed"`
+	Name        types.String                                                        `tfsdk:"name" json:"name,computed"`
+	Type        types.String                                                        `tfsdk:"type" json:"type,computed"`
+	Paragon     customfield.NestedObject[WorkflowsConnectorsParagonDataSourceModel] `tfsdk:"paragon" json:"paragon,computed"`
+}
+
+type WorkflowsConnectorsParagonDataSourceModel struct {
+	Configuration jsontypes.Normalized `tfsdk:"configuration" json:"configuration,computed"`
+	Integration   types.String         `tfsdk:"integration" json:"integration,computed"`
+	SyncID        types.String         `tfsdk:"sync_id" json:"syncID,computed"`
 }
 
 type WorkflowsEdgesDataSourceModel struct {
-	DestinationNodeName types.String `tfsdk:"destination_node_name" json:"destinationNodeName,computed"`
-	SourceNodeName      types.String `tfsdk:"source_node_name" json:"sourceNodeName,computed"`
-	DestinationName     types.String `tfsdk:"destination_name" json:"destinationName,computed"`
+	DestinationNodeName types.String         `tfsdk:"destination_node_name" json:"destinationNodeName,computed"`
+	SourceNodeName      types.String         `tfsdk:"source_node_name" json:"sourceNodeName,computed"`
+	DestinationName     types.String         `tfsdk:"destination_name" json:"destinationName,computed"`
+	Metadata            jsontypes.Normalized `tfsdk:"metadata" json:"metadata,computed"`
 }
 
 type WorkflowsNodesDataSourceModel struct {
 	Function customfield.NestedObject[WorkflowsNodesFunctionDataSourceModel] `tfsdk:"function" json:"function,computed"`
 	Name     types.String                                                    `tfsdk:"name" json:"name,computed"`
+	Metadata jsontypes.Normalized                                            `tfsdk:"metadata" json:"metadata,computed"`
 }
 
 type WorkflowsNodesFunctionDataSourceModel struct {
