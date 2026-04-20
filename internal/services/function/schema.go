@@ -26,7 +26,7 @@ var _ resource.ResourceWithConfigValidators = (*FunctionResource)(nil)
 
 func ResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
-		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Transform**: Extract structured JSON data from unstructured documents (PDFs, emails, images)\n- **Analyze**: Perform visual analysis on documents to extract layout-aware information\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n\nUse these endpoints to create, update, list, and manage your functions.",
+		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Extract**: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extraction\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n- **Send**: Deliver workflow outputs to downstream destinations\n\nUse these endpoints to create, update, list, and manage your functions.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description:   "Name of function. Must be UNIQUE on a per-environment basis.",
@@ -42,14 +42,12 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Required:    true,
 			},
 			"type": schema.StringAttribute{
-				Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+				Description: `Available values: "extract", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
-						"transform",
 						"extract",
-						"analyze",
-						"route",
+						"classify",
 						"send",
 						"split",
 						"join",
@@ -59,7 +57,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				},
 			},
 			"description": schema.StringAttribute{
-				Description: "Description of router. Can be used to provide additional context on router's purpose and expected inputs.",
+				Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
 				Optional:    true,
 			},
 			"destination_type": schema.StringAttribute{
@@ -77,10 +75,6 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Display name of function. Human-readable name to help you identify the function.",
 				Optional:    true,
 			},
-			"enable_bounding_boxes": schema.BoolAttribute{
-				Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted. Enabling this automatically configures the function to use the bounding\nbox model. Disabling resets to the default.",
-				Optional:    true,
-			},
 			"google_drive_folder_id": schema.StringAttribute{
 				Description: "Google Drive folder ID. Required when destinationType is google_drive. Managed via Paragon OAuth.",
 				Optional:    true,
@@ -94,10 +88,6 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			},
 			"output_schema_name": schema.StringAttribute{
 				Description: "Name of output schema object.",
-				Optional:    true,
-			},
-			"pre_count": schema.BoolAttribute{
-				Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency. Compatible with\n`enableBoundingBoxes`.",
 				Optional:    true,
 			},
 			"s3_bucket": schema.StringAttribute{
@@ -120,7 +110,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				},
 			},
 			"tabular_chunking_enabled": schema.BoolAttribute{
-				Description: "Whether tabular chunking is enabled on the pipeline. This processes tables in CSV/Excel in row batches, rather than all rows at once.",
+				Description: "Whether tabular chunking is enabled. When true, tables in CSV/Excel files are processed\nin row batches rather than all at once.",
 				Optional:    true,
 			},
 			"webhook_signing_enabled": schema.BoolAttribute{
@@ -135,6 +125,52 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Array of tags to categorize and organize functions.",
 				Optional:    true,
 				ElementType: types.StringType,
+			},
+			"classifications": schema.ListNestedAttribute{
+				Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
+				Optional:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Required: true,
+						},
+						"description": schema.StringAttribute{
+							Optional: true,
+						},
+						"function_id": schema.StringAttribute{
+							Optional: true,
+						},
+						"function_name": schema.StringAttribute{
+							Optional: true,
+						},
+						"is_error_fallback": schema.BoolAttribute{
+							Optional: true,
+						},
+						"origin": schema.SingleNestedAttribute{
+							Optional: true,
+							Attributes: map[string]schema.Attribute{
+								"email": schema.SingleNestedAttribute{
+									Optional: true,
+									Attributes: map[string]schema.Attribute{
+										"patterns": schema.ListAttribute{
+											Optional:    true,
+											ElementType: types.StringType,
+										},
+									},
+								},
+							},
+						},
+						"regex": schema.SingleNestedAttribute{
+							Optional: true,
+							Attributes: map[string]schema.Attribute{
+								"patterns": schema.ListAttribute{
+									Optional:    true,
+									ElementType: types.StringType,
+								},
+							},
+						},
+					},
+				},
 			},
 			"config": schema.SingleNestedAttribute{
 				Description: "Configuration for enrich function with semantic search steps.\n\n**How Enrich Functions Work:**\n\nEnrich functions use semantic search to augment JSON data with relevant information from collections.\nThey take JSON input (typically from a transform function), extract specified fields, perform vector-based\nsemantic search against collections, and inject the results back into the data.\n\n**Input Requirements:**\n- Must receive JSON input (typically uploaded to S3 from a previous function)\n- Can be chained after transform or other functions that produce JSON output\n\n**Example Use Cases:**\n- Match product descriptions to SKU codes from a product catalog\n- Enrich customer data with account information\n- Link order line items to inventory records\n\n**Configuration:**\n- Define one or more enrichment steps\n- Each step extracts values, searches a collection, and injects results\n- Steps are executed sequentially",
@@ -212,52 +248,6 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					},
 				},
 			},
-			"routes": schema.ListNestedAttribute{
-				Description: "List of routes.",
-				Optional:    true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Required: true,
-						},
-						"description": schema.StringAttribute{
-							Optional: true,
-						},
-						"function_id": schema.StringAttribute{
-							Optional: true,
-						},
-						"function_name": schema.StringAttribute{
-							Optional: true,
-						},
-						"is_error_fallback": schema.BoolAttribute{
-							Optional: true,
-						},
-						"origin": schema.SingleNestedAttribute{
-							Optional: true,
-							Attributes: map[string]schema.Attribute{
-								"email": schema.SingleNestedAttribute{
-									Optional: true,
-									Attributes: map[string]schema.Attribute{
-										"patterns": schema.ListAttribute{
-											Optional:    true,
-											ElementType: types.StringType,
-										},
-									},
-								},
-							},
-						},
-						"regex": schema.SingleNestedAttribute{
-							Optional: true,
-							Attributes: map[string]schema.Attribute{
-								"patterns": schema.ListAttribute{
-									Optional:    true,
-									ElementType: types.StringType,
-								},
-							},
-						},
-					},
-				},
-			},
 			"semantic_page_split_config": schema.SingleNestedAttribute{
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
@@ -290,7 +280,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				CustomType:  jsontypes.NormalizedType{},
 			},
 			"function": schema.SingleNestedAttribute{
-				Description: "A function that extracts structured JSON from documents and images.\nAccepts a wide range of input types including PDFs, images, spreadsheets, emails, and more.",
+				Description: "V3 read-side union. Same shape as the shared `Function` union but with\n`classify` in place of `route`. Legacy `transform` and `analyze` functions\nremain readable via V3.",
 				Computed:    true,
 				CustomType:  customfield.NewNestedObjectType[FunctionFunctionModel](ctx),
 				Attributes: map[string]schema.Attribute{
@@ -320,14 +310,14 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"type": schema.StringAttribute{
-						Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
 								"transform",
 								"extract",
 								"analyze",
-								"route",
+								"classify",
 								"send",
 								"split",
 								"join",
@@ -488,14 +478,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency.",
 						Computed:    true,
 					},
-					"description": schema.StringAttribute{
-						Description: "Description of router. Can be used to provide additional context on router's purpose and expected inputs.",
+					"classifications": schema.ListNestedAttribute{
+						Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
 						Computed:    true,
-					},
-					"routes": schema.ListNestedAttribute{
-						Description: "List of routes.",
-						Computed:    true,
-						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionRoutesModel](ctx),
+						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionClassificationsModel](ctx),
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"name": schema.StringAttribute{
@@ -515,11 +501,11 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								},
 								"origin": schema.SingleNestedAttribute{
 									Computed:   true,
-									CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesOriginModel](ctx),
+									CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsOriginModel](ctx),
 									Attributes: map[string]schema.Attribute{
 										"email": schema.SingleNestedAttribute{
 											Computed:   true,
-											CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesOriginEmailModel](ctx),
+											CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsOriginEmailModel](ctx),
 											Attributes: map[string]schema.Attribute{
 												"patterns": schema.ListAttribute{
 													Computed:    true,
@@ -532,7 +518,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								},
 								"regex": schema.SingleNestedAttribute{
 									Computed:   true,
-									CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesRegexModel](ctx),
+									CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsRegexModel](ctx),
 									Attributes: map[string]schema.Attribute{
 										"patterns": schema.ListAttribute{
 											Computed:    true,
@@ -543,6 +529,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								},
 							},
 						},
+					},
+					"description": schema.StringAttribute{
+						Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
+						Computed:    true,
 					},
 					"destination_type": schema.StringAttribute{
 						Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",

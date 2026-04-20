@@ -1,6 +1,6 @@
 resource "bem_function" "example_function" {
   path_function_name = "functionName"
-  type = "transform"
+  type = "extract"
   display_name = "displayName"
   output_schema = {
 
