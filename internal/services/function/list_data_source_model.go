@@ -103,8 +103,8 @@ type FunctionsItemsDataSourceModel struct {
 	UsedInWorkflows         customfield.NestedObjectList[FunctionsUsedInWorkflowsDataSourceModel]     `tfsdk:"used_in_workflows" json:"usedInWorkflows,computed"`
 	EnableBoundingBoxes     types.Bool                                                                `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	PreCount                types.Bool                                                                `tfsdk:"pre_count" json:"preCount,computed"`
+	Classifications         customfield.NestedObjectList[FunctionsClassificationsDataSourceModel]     `tfsdk:"classifications" json:"classifications,computed"`
 	Description             types.String                                                              `tfsdk:"description" json:"description,computed"`
-	Routes                  customfield.NestedObjectList[FunctionsRoutesDataSourceModel]              `tfsdk:"routes" json:"routes,computed"`
 	DestinationType         types.String                                                              `tfsdk:"destination_type" json:"destinationType,computed"`
 	GoogleDriveFolderID     types.String                                                              `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,computed"`
 	S3Bucket                types.String                                                              `tfsdk:"s3_bucket" json:"s3Bucket,computed"`
@@ -159,25 +159,25 @@ type FunctionsUsedInWorkflowsDataSourceModel struct {
 	WorkflowName              types.String                  `tfsdk:"workflow_name" json:"workflowName,computed"`
 }
 
-type FunctionsRoutesDataSourceModel struct {
-	Name            types.String                                                   `tfsdk:"name" json:"name,computed"`
-	Description     types.String                                                   `tfsdk:"description" json:"description,computed"`
-	FunctionID      types.String                                                   `tfsdk:"function_id" json:"functionID,computed"`
-	FunctionName    types.String                                                   `tfsdk:"function_name" json:"functionName,computed"`
-	IsErrorFallback types.Bool                                                     `tfsdk:"is_error_fallback" json:"isErrorFallback,computed"`
-	Origin          customfield.NestedObject[FunctionsRoutesOriginDataSourceModel] `tfsdk:"origin" json:"origin,computed"`
-	Regex           customfield.NestedObject[FunctionsRoutesRegexDataSourceModel]  `tfsdk:"regex" json:"regex,computed"`
+type FunctionsClassificationsDataSourceModel struct {
+	Name            types.String                                                            `tfsdk:"name" json:"name,computed"`
+	Description     types.String                                                            `tfsdk:"description" json:"description,computed"`
+	FunctionID      types.String                                                            `tfsdk:"function_id" json:"functionID,computed"`
+	FunctionName    types.String                                                            `tfsdk:"function_name" json:"functionName,computed"`
+	IsErrorFallback types.Bool                                                              `tfsdk:"is_error_fallback" json:"isErrorFallback,computed"`
+	Origin          customfield.NestedObject[FunctionsClassificationsOriginDataSourceModel] `tfsdk:"origin" json:"origin,computed"`
+	Regex           customfield.NestedObject[FunctionsClassificationsRegexDataSourceModel]  `tfsdk:"regex" json:"regex,computed"`
 }
 
-type FunctionsRoutesOriginDataSourceModel struct {
-	Email customfield.NestedObject[FunctionsRoutesOriginEmailDataSourceModel] `tfsdk:"email" json:"email,computed"`
+type FunctionsClassificationsOriginDataSourceModel struct {
+	Email customfield.NestedObject[FunctionsClassificationsOriginEmailDataSourceModel] `tfsdk:"email" json:"email,computed"`
 }
 
-type FunctionsRoutesOriginEmailDataSourceModel struct {
+type FunctionsClassificationsOriginEmailDataSourceModel struct {
 	Patterns customfield.List[types.String] `tfsdk:"patterns" json:"patterns,computed"`
 }
 
-type FunctionsRoutesRegexDataSourceModel struct {
+type FunctionsClassificationsRegexDataSourceModel struct {
 	Patterns customfield.List[types.String] `tfsdk:"patterns" json:"patterns,computed"`
 }
 

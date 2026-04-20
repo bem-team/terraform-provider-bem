@@ -19,11 +19,9 @@ type FunctionModel struct {
 	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`
 	DestinationType         types.String                                    `tfsdk:"destination_type" json:"destinationType,optional,no_refresh"`
 	DisplayName             types.String                                    `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
-	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional,no_refresh"`
 	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
-	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,optional,no_refresh"`
 	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh"`
 	S3Prefix                types.String                                    `tfsdk:"s3_prefix" json:"s3Prefix,optional,no_refresh"`
 	ShapingSchema           types.String                                    `tfsdk:"shaping_schema" json:"shapingSchema,optional,no_refresh"`
@@ -32,9 +30,9 @@ type FunctionModel struct {
 	WebhookSigningEnabled   types.Bool                                      `tfsdk:"webhook_signing_enabled" json:"webhookSigningEnabled,optional,no_refresh"`
 	WebhookURL              types.String                                    `tfsdk:"webhook_url" json:"webhookUrl,optional,no_refresh"`
 	Tags                    *[]types.String                                 `tfsdk:"tags" json:"tags,optional,no_refresh"`
+	Classifications         *[]*FunctionClassificationsModel                `tfsdk:"classifications" json:"classifications,optional,no_refresh"`
 	Config                  *FunctionConfigModel                            `tfsdk:"config" json:"config,optional,no_refresh"`
 	PrintPageSplitConfig    *FunctionPrintPageSplitConfigModel              `tfsdk:"print_page_split_config" json:"printPageSplitConfig,optional,no_refresh"`
-	Routes                  *[]*FunctionRoutesModel                         `tfsdk:"routes" json:"routes,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
 	OutputSchema            jsontypes.Normalized                            `tfsdk:"output_schema" json:"outputSchema,optional,no_refresh"`
 	Function                customfield.NestedObject[FunctionFunctionModel] `tfsdk:"function" json:"function,computed"`
@@ -50,6 +48,28 @@ func (m FunctionModel) MarshalJSONForUpdate(state FunctionModel) (data []byte, e
 		return nil, err
 	}
 	return sjson.SetBytes(data, "functionName", m.FunctionName.ValueString())
+}
+
+type FunctionClassificationsModel struct {
+	Name            types.String                        `tfsdk:"name" json:"name,required"`
+	Description     types.String                        `tfsdk:"description" json:"description,optional"`
+	FunctionID      types.String                        `tfsdk:"function_id" json:"functionID,optional"`
+	FunctionName    types.String                        `tfsdk:"function_name" json:"functionName,optional"`
+	IsErrorFallback types.Bool                          `tfsdk:"is_error_fallback" json:"isErrorFallback,optional"`
+	Origin          *FunctionClassificationsOriginModel `tfsdk:"origin" json:"origin,optional"`
+	Regex           *FunctionClassificationsRegexModel  `tfsdk:"regex" json:"regex,optional"`
+}
+
+type FunctionClassificationsOriginModel struct {
+	Email *FunctionClassificationsOriginEmailModel `tfsdk:"email" json:"email,optional"`
+}
+
+type FunctionClassificationsOriginEmailModel struct {
+	Patterns *[]types.String `tfsdk:"patterns" json:"patterns,optional"`
+}
+
+type FunctionClassificationsRegexModel struct {
+	Patterns *[]types.String `tfsdk:"patterns" json:"patterns,optional"`
 }
 
 type FunctionConfigModel struct {
@@ -70,28 +90,6 @@ type FunctionConfigStepsModel struct {
 type FunctionPrintPageSplitConfigModel struct {
 	NextFunctionID   types.String `tfsdk:"next_function_id" json:"nextFunctionID,optional"`
 	NextFunctionName types.String `tfsdk:"next_function_name" json:"nextFunctionName,optional"`
-}
-
-type FunctionRoutesModel struct {
-	Name            types.String               `tfsdk:"name" json:"name,required"`
-	Description     types.String               `tfsdk:"description" json:"description,optional"`
-	FunctionID      types.String               `tfsdk:"function_id" json:"functionID,optional"`
-	FunctionName    types.String               `tfsdk:"function_name" json:"functionName,optional"`
-	IsErrorFallback types.Bool                 `tfsdk:"is_error_fallback" json:"isErrorFallback,optional"`
-	Origin          *FunctionRoutesOriginModel `tfsdk:"origin" json:"origin,optional"`
-	Regex           *FunctionRoutesRegexModel  `tfsdk:"regex" json:"regex,optional"`
-}
-
-type FunctionRoutesOriginModel struct {
-	Email *FunctionRoutesOriginEmailModel `tfsdk:"email" json:"email,optional"`
-}
-
-type FunctionRoutesOriginEmailModel struct {
-	Patterns *[]types.String `tfsdk:"patterns" json:"patterns,optional"`
-}
-
-type FunctionRoutesRegexModel struct {
-	Patterns *[]types.String `tfsdk:"patterns" json:"patterns,optional"`
 }
 
 type FunctionSemanticPageSplitConfigModel struct {
@@ -120,8 +118,8 @@ type FunctionFunctionModel struct {
 	UsedInWorkflows         customfield.NestedObjectList[FunctionFunctionUsedInWorkflowsModel]     `tfsdk:"used_in_workflows" json:"usedInWorkflows,computed"`
 	EnableBoundingBoxes     types.Bool                                                             `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	PreCount                types.Bool                                                             `tfsdk:"pre_count" json:"preCount,computed"`
+	Classifications         customfield.NestedObjectList[FunctionFunctionClassificationsModel]     `tfsdk:"classifications" json:"classifications,computed"`
 	Description             types.String                                                           `tfsdk:"description" json:"description,computed"`
-	Routes                  customfield.NestedObjectList[FunctionFunctionRoutesModel]              `tfsdk:"routes" json:"routes,computed"`
 	DestinationType         types.String                                                           `tfsdk:"destination_type" json:"destinationType,computed"`
 	GoogleDriveFolderID     types.String                                                           `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,computed"`
 	S3Bucket                types.String                                                           `tfsdk:"s3_bucket" json:"s3Bucket,computed"`
@@ -176,25 +174,25 @@ type FunctionFunctionUsedInWorkflowsModel struct {
 	WorkflowName              types.String                  `tfsdk:"workflow_name" json:"workflowName,computed"`
 }
 
-type FunctionFunctionRoutesModel struct {
-	Name            types.String                                                `tfsdk:"name" json:"name,computed"`
-	Description     types.String                                                `tfsdk:"description" json:"description,computed"`
-	FunctionID      types.String                                                `tfsdk:"function_id" json:"functionID,computed"`
-	FunctionName    types.String                                                `tfsdk:"function_name" json:"functionName,computed"`
-	IsErrorFallback types.Bool                                                  `tfsdk:"is_error_fallback" json:"isErrorFallback,computed"`
-	Origin          customfield.NestedObject[FunctionFunctionRoutesOriginModel] `tfsdk:"origin" json:"origin,computed"`
-	Regex           customfield.NestedObject[FunctionFunctionRoutesRegexModel]  `tfsdk:"regex" json:"regex,computed"`
+type FunctionFunctionClassificationsModel struct {
+	Name            types.String                                                         `tfsdk:"name" json:"name,computed"`
+	Description     types.String                                                         `tfsdk:"description" json:"description,computed"`
+	FunctionID      types.String                                                         `tfsdk:"function_id" json:"functionID,computed"`
+	FunctionName    types.String                                                         `tfsdk:"function_name" json:"functionName,computed"`
+	IsErrorFallback types.Bool                                                           `tfsdk:"is_error_fallback" json:"isErrorFallback,computed"`
+	Origin          customfield.NestedObject[FunctionFunctionClassificationsOriginModel] `tfsdk:"origin" json:"origin,computed"`
+	Regex           customfield.NestedObject[FunctionFunctionClassificationsRegexModel]  `tfsdk:"regex" json:"regex,computed"`
 }
 
-type FunctionFunctionRoutesOriginModel struct {
-	Email customfield.NestedObject[FunctionFunctionRoutesOriginEmailModel] `tfsdk:"email" json:"email,computed"`
+type FunctionFunctionClassificationsOriginModel struct {
+	Email customfield.NestedObject[FunctionFunctionClassificationsOriginEmailModel] `tfsdk:"email" json:"email,computed"`
 }
 
-type FunctionFunctionRoutesOriginEmailModel struct {
+type FunctionFunctionClassificationsOriginEmailModel struct {
 	Patterns customfield.List[types.String] `tfsdk:"patterns" json:"patterns,computed"`
 }
 
-type FunctionFunctionRoutesRegexModel struct {
+type FunctionFunctionClassificationsRegexModel struct {
 	Patterns customfield.List[types.String] `tfsdk:"patterns" json:"patterns,computed"`
 }
 

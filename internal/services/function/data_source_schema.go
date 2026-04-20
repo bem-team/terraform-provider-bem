@@ -24,7 +24,7 @@ var _ datasource.DataSourceWithConfigValidators = (*FunctionDataSource)(nil)
 
 func DataSourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
-		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Transform**: Extract structured JSON data from unstructured documents (PDFs, emails, images)\n- **Analyze**: Perform visual analysis on documents to extract layout-aware information\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n\nUse these endpoints to create, update, list, and manage your functions.",
+		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Extract**: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extraction\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n- **Send**: Deliver workflow outputs to downstream destinations\n\nUse these endpoints to create, update, list, and manage your functions.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -33,7 +33,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 				Optional: true,
 			},
 			"function": schema.SingleNestedAttribute{
-				Description: "A function that extracts structured JSON from documents and images.\nAccepts a wide range of input types including PDFs, images, spreadsheets, emails, and more.",
+				Description: "V3 read-side union. Same shape as the shared `Function` union but with\n`classify` in place of `route`. Legacy `transform` and `analyze` functions\nremain readable via V3.",
 				Computed:    true,
 				CustomType:  customfield.NewNestedObjectType[FunctionFunctionDataSourceModel](ctx),
 				Attributes: map[string]schema.Attribute{
@@ -63,14 +63,14 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"type": schema.StringAttribute{
-						Description: `Available values: "transform", "extract", "analyze", "route", "send", "split", "join", "payload_shaping", "enrich".`,
+						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
 								"transform",
 								"extract",
 								"analyze",
-								"route",
+								"classify",
 								"send",
 								"split",
 								"join",
@@ -231,14 +231,10 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency.",
 						Computed:    true,
 					},
-					"description": schema.StringAttribute{
-						Description: "Description of router. Can be used to provide additional context on router's purpose and expected inputs.",
+					"classifications": schema.ListNestedAttribute{
+						Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
 						Computed:    true,
-					},
-					"routes": schema.ListNestedAttribute{
-						Description: "List of routes.",
-						Computed:    true,
-						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionRoutesDataSourceModel](ctx),
+						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionClassificationsDataSourceModel](ctx),
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"name": schema.StringAttribute{
@@ -258,11 +254,11 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 								},
 								"origin": schema.SingleNestedAttribute{
 									Computed:   true,
-									CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesOriginDataSourceModel](ctx),
+									CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsOriginDataSourceModel](ctx),
 									Attributes: map[string]schema.Attribute{
 										"email": schema.SingleNestedAttribute{
 											Computed:   true,
-											CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesOriginEmailDataSourceModel](ctx),
+											CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsOriginEmailDataSourceModel](ctx),
 											Attributes: map[string]schema.Attribute{
 												"patterns": schema.ListAttribute{
 													Computed:    true,
@@ -275,7 +271,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 								},
 								"regex": schema.SingleNestedAttribute{
 									Computed:   true,
-									CustomType: customfield.NewNestedObjectType[FunctionFunctionRoutesRegexDataSourceModel](ctx),
+									CustomType: customfield.NewNestedObjectType[FunctionFunctionClassificationsRegexDataSourceModel](ctx),
 									Attributes: map[string]schema.Attribute{
 										"patterns": schema.ListAttribute{
 											Computed:    true,
@@ -286,6 +282,10 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 								},
 							},
 						},
+					},
+					"description": schema.StringAttribute{
+						Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
+						Computed:    true,
 					},
 					"destination_type": schema.StringAttribute{
 						Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
