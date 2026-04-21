@@ -10,7 +10,6 @@ import (
 
 	"github.com/bem-team/bem-go-sdk"
 	"github.com/bem-team/bem-go-sdk/option"
-	"github.com/bem-team/bem-go-sdk/packages/param"
 	"github.com/bem-team/terraform-provider-bem/internal/apijson"
 	"github.com/bem-team/terraform-provider-bem/internal/importpath"
 	"github.com/bem-team/terraform-provider-bem/internal/logging"
@@ -108,9 +107,7 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	params := bem.FunctionUpdateParams{
-		FunctionName: param.NewOpt(data.FunctionName.ValueString()),
-	}
+	params := bem.FunctionUpdateParams{}
 
 	dataBytes, err := data.MarshalJSONForUpdate(*state)
 	if err != nil {
