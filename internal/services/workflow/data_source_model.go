@@ -3,16 +3,73 @@
 package workflow
 
 import (
+	"context"
+
+	"github.com/bem-team/bem-go-sdk"
+	"github.com/bem-team/bem-go-sdk/packages/param"
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 type WorkflowDataSourceModel struct {
-	WorkflowName types.String                                              `tfsdk:"workflow_name" path:"workflowName,required"`
+	ID           types.String                                              `tfsdk:"id" path:"workflowName,computed"`
+	WorkflowName types.String                                              `tfsdk:"workflow_name" path:"workflowName,optional"`
 	Error        types.String                                              `tfsdk:"error" json:"error,computed"`
 	Workflow     customfield.NestedObject[WorkflowWorkflowDataSourceModel] `tfsdk:"workflow" json:"workflow,computed"`
+	FindOneBy    *WorkflowFindOneByDataSourceModel                         `tfsdk:"find_one_by"`
+}
+
+func (m *WorkflowDataSourceModel) toListParams(_ context.Context) (params bem.WorkflowListParams, diags diag.Diagnostics) {
+	mFindOneByFunctionIDs := []string{}
+	if m.FindOneBy.FunctionIDs != nil {
+		for _, item := range *m.FindOneBy.FunctionIDs {
+			mFindOneByFunctionIDs = append(mFindOneByFunctionIDs, item.ValueString())
+		}
+	}
+	mFindOneByFunctionNames := []string{}
+	if m.FindOneBy.FunctionNames != nil {
+		for _, item := range *m.FindOneBy.FunctionNames {
+			mFindOneByFunctionNames = append(mFindOneByFunctionNames, item.ValueString())
+		}
+	}
+	mFindOneByTags := []string{}
+	if m.FindOneBy.Tags != nil {
+		for _, item := range *m.FindOneBy.Tags {
+			mFindOneByTags = append(mFindOneByTags, item.ValueString())
+		}
+	}
+	mFindOneByWorkflowIDs := []string{}
+	if m.FindOneBy.WorkflowIDs != nil {
+		for _, item := range *m.FindOneBy.WorkflowIDs {
+			mFindOneByWorkflowIDs = append(mFindOneByWorkflowIDs, item.ValueString())
+		}
+	}
+	mFindOneByWorkflowNames := []string{}
+	if m.FindOneBy.WorkflowNames != nil {
+		for _, item := range *m.FindOneBy.WorkflowNames {
+			mFindOneByWorkflowNames = append(mFindOneByWorkflowNames, item.ValueString())
+		}
+	}
+
+	params = bem.WorkflowListParams{
+		FunctionIDs:   mFindOneByFunctionIDs,
+		FunctionNames: mFindOneByFunctionNames,
+		Tags:          mFindOneByTags,
+		WorkflowIDs:   mFindOneByWorkflowIDs,
+		WorkflowNames: mFindOneByWorkflowNames,
+	}
+
+	if !m.FindOneBy.DisplayName.IsNull() {
+		params.DisplayName = param.NewOpt(m.FindOneBy.DisplayName.ValueString())
+	}
+	if !m.FindOneBy.SortOrder.IsNull() {
+		params.SortOrder = bem.WorkflowListParamsSortOrder(m.FindOneBy.SortOrder.ValueString())
+	}
+
+	return
 }
 
 type WorkflowWorkflowDataSourceModel struct {
@@ -94,4 +151,14 @@ type WorkflowWorkflowAuditWorkflowLastUpdatedByDataSourceModel struct {
 	EmailAddress types.String      `tfsdk:"email_address" json:"emailAddress,computed"`
 	UserEmail    types.String      `tfsdk:"user_email" json:"userEmail,computed"`
 	UserID       types.String      `tfsdk:"user_id" json:"userID,computed"`
+}
+
+type WorkflowFindOneByDataSourceModel struct {
+	DisplayName   types.String    `tfsdk:"display_name" query:"displayName,optional"`
+	FunctionIDs   *[]types.String `tfsdk:"function_ids" query:"functionIDs,optional"`
+	FunctionNames *[]types.String `tfsdk:"function_names" query:"functionNames,optional"`
+	SortOrder     types.String    `tfsdk:"sort_order" query:"sortOrder,computed_optional"`
+	Tags          *[]types.String `tfsdk:"tags" query:"tags,optional"`
+	WorkflowIDs   *[]types.String `tfsdk:"workflow_ids" query:"workflowIDs,optional"`
+	WorkflowNames *[]types.String `tfsdk:"workflow_names" query:"workflowNames,optional"`
 }

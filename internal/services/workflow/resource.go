@@ -11,13 +11,16 @@ import (
 	"github.com/bem-team/bem-go-sdk"
 	"github.com/bem-team/bem-go-sdk/option"
 	"github.com/bem-team/terraform-provider-bem/internal/apijson"
+	"github.com/bem-team/terraform-provider-bem/internal/importpath"
 	"github.com/bem-team/terraform-provider-bem/internal/logging"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.ResourceWithConfigure = (*WorkflowResource)(nil)
 var _ resource.ResourceWithModifyPlan = (*WorkflowResource)(nil)
+var _ resource.ResourceWithImportState = (*WorkflowResource)(nil)
 
 func NewResource() resource.Resource {
 	return &WorkflowResource{}
@@ -66,6 +69,7 @@ func (r *WorkflowResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 	res := new(http.Response)
+	env := WorkflowWorkflowEnvelope{*data}
 	_, err = r.client.Workflows.New(
 		ctx,
 		bem.WorkflowNewParams{},
@@ -78,11 +82,13 @@ func (r *WorkflowResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	err = apijson.UnmarshalComputed(bytes, &data)
+	err = apijson.UnmarshalComputed(bytes, &env)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data = &env.Workflow
+	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -112,7 +118,7 @@ func (r *WorkflowResource) Update(ctx context.Context, req resource.UpdateReques
 	res := new(http.Response)
 	_, err = r.client.Workflows.Update(
 		ctx,
-		data.WorkflowName.ValueString(),
+		data.Name.ValueString(),
 		bem.WorkflowUpdateParams{},
 		option.WithRequestBody("application/json", dataBytes),
 		option.WithResponseBodyInto(&res),
@@ -128,6 +134,7 @@ func (r *WorkflowResource) Update(ctx context.Context, req resource.UpdateReques
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -144,7 +151,7 @@ func (r *WorkflowResource) Read(ctx context.Context, req resource.ReadRequest, r
 	res := new(http.Response)
 	_, err := r.client.Workflows.Get(
 		ctx,
-		data.WorkflowName.ValueString(),
+		data.Name.ValueString(),
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)
@@ -163,6 +170,7 @@ func (r *WorkflowResource) Read(ctx context.Context, req resource.ReadRequest, r
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -178,13 +186,52 @@ func (r *WorkflowResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	err := r.client.Workflows.Delete(
 		ctx,
-		data.WorkflowName.ValueString(),
+		data.Name.ValueString(),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to make http request", err.Error())
 		return
 	}
+	data.ID = data.Name
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func (r *WorkflowResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	var data = new(WorkflowModel)
+
+	path := ""
+	diags := importpath.ParseImportID(
+		req.ID,
+		"<workflow_name>",
+		&path,
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	data.Name = types.StringValue(path)
+
+	res := new(http.Response)
+	_, err := r.client.Workflows.Get(
+		ctx,
+		path,
+		option.WithResponseBodyInto(&res),
+		option.WithMiddleware(logging.Middleware(ctx)),
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to make http request", err.Error())
+		return
+	}
+	bytes, _ := io.ReadAll(res.Body)
+	err = apijson.Unmarshal(bytes, &data)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
+		return
+	}
+	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

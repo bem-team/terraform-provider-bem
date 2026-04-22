@@ -10,16 +10,25 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+type WorkflowWorkflowEnvelope struct {
+	Workflow WorkflowModel `json:"workflow"`
+}
+
 type WorkflowModel struct {
-	WorkflowName    types.String                                               `tfsdk:"workflow_name" path:"workflowName,optional"`
+	ID              types.String                                               `tfsdk:"id" json:"-,computed"`
+	Name            types.String                                               `tfsdk:"name" json:"name,required"`
 	MainNodeName    types.String                                               `tfsdk:"main_node_name" json:"mainNodeName,required,no_refresh"`
-	Name            types.String                                               `tfsdk:"name" json:"name,required,no_refresh"`
 	Nodes           *[]*WorkflowNodesModel                                     `tfsdk:"nodes" json:"nodes,required,no_refresh"`
 	DisplayName     types.String                                               `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
 	Tags            *[]types.String                                            `tfsdk:"tags" json:"tags,optional,no_refresh"`
 	Connectors      *[]*WorkflowConnectorsModel                                `tfsdk:"connectors" json:"connectors,optional,no_refresh"`
 	Edges           *[]*WorkflowEdgesModel                                     `tfsdk:"edges" json:"edges,optional,no_refresh"`
+	CreatedAt       timetypes.RFC3339                                          `tfsdk:"created_at" json:"createdAt,computed,no_refresh" format:"date-time"`
+	EmailAddress    types.String                                               `tfsdk:"email_address" json:"emailAddress,computed,no_refresh"`
 	Error           types.String                                               `tfsdk:"error" json:"error,computed"`
+	UpdatedAt       timetypes.RFC3339                                          `tfsdk:"updated_at" json:"updatedAt,computed,no_refresh" format:"date-time"`
+	VersionNum      types.Int64                                                `tfsdk:"version_num" json:"versionNum,computed,no_refresh"`
+	Audit           customfield.NestedObject[WorkflowAuditModel]               `tfsdk:"audit" json:"audit,computed,no_refresh"`
 	ConnectorErrors customfield.NestedObjectList[WorkflowConnectorErrorsModel] `tfsdk:"connector_errors" json:"connectorErrors,computed,no_refresh"`
 	Workflow        customfield.NestedObject[WorkflowWorkflowModel]            `tfsdk:"workflow" json:"workflow,computed"`
 }
@@ -61,6 +70,39 @@ type WorkflowEdgesModel struct {
 	SourceNodeName      types.String         `tfsdk:"source_node_name" json:"sourceNodeName,required"`
 	DestinationName     types.String         `tfsdk:"destination_name" json:"destinationName,optional"`
 	Metadata            jsontypes.Normalized `tfsdk:"metadata" json:"metadata,optional"`
+}
+
+type WorkflowAuditModel struct {
+	VersionCreatedBy      customfield.NestedObject[WorkflowAuditVersionCreatedByModel]      `tfsdk:"version_created_by" json:"versionCreatedBy,computed"`
+	WorkflowCreatedBy     customfield.NestedObject[WorkflowAuditWorkflowCreatedByModel]     `tfsdk:"workflow_created_by" json:"workflowCreatedBy,computed"`
+	WorkflowLastUpdatedBy customfield.NestedObject[WorkflowAuditWorkflowLastUpdatedByModel] `tfsdk:"workflow_last_updated_by" json:"workflowLastUpdatedBy,computed"`
+}
+
+type WorkflowAuditVersionCreatedByModel struct {
+	CreatedAt    timetypes.RFC3339 `tfsdk:"created_at" json:"createdAt,computed" format:"date-time"`
+	UserActionID types.String      `tfsdk:"user_action_id" json:"userActionID,computed"`
+	APIKeyName   types.String      `tfsdk:"api_key_name" json:"apiKeyName,computed"`
+	EmailAddress types.String      `tfsdk:"email_address" json:"emailAddress,computed"`
+	UserEmail    types.String      `tfsdk:"user_email" json:"userEmail,computed"`
+	UserID       types.String      `tfsdk:"user_id" json:"userID,computed"`
+}
+
+type WorkflowAuditWorkflowCreatedByModel struct {
+	CreatedAt    timetypes.RFC3339 `tfsdk:"created_at" json:"createdAt,computed" format:"date-time"`
+	UserActionID types.String      `tfsdk:"user_action_id" json:"userActionID,computed"`
+	APIKeyName   types.String      `tfsdk:"api_key_name" json:"apiKeyName,computed"`
+	EmailAddress types.String      `tfsdk:"email_address" json:"emailAddress,computed"`
+	UserEmail    types.String      `tfsdk:"user_email" json:"userEmail,computed"`
+	UserID       types.String      `tfsdk:"user_id" json:"userID,computed"`
+}
+
+type WorkflowAuditWorkflowLastUpdatedByModel struct {
+	CreatedAt    timetypes.RFC3339 `tfsdk:"created_at" json:"createdAt,computed" format:"date-time"`
+	UserActionID types.String      `tfsdk:"user_action_id" json:"userActionID,computed"`
+	APIKeyName   types.String      `tfsdk:"api_key_name" json:"apiKeyName,computed"`
+	EmailAddress types.String      `tfsdk:"email_address" json:"emailAddress,computed"`
+	UserEmail    types.String      `tfsdk:"user_email" json:"userEmail,computed"`
+	UserID       types.String      `tfsdk:"user_id" json:"userID,computed"`
 }
 
 type WorkflowConnectorErrorsModel struct {
