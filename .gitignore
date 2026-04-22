@@ -1,0 +1,4 @@
+.prism.log
+.stdy.log
+dist/
+terraform-provider-bem
