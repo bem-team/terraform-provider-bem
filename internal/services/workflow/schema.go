@@ -23,16 +23,18 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		MarkdownDescription: "Workflows orchestrate one or more functions into a directed acyclic graph (DAG) for document processing.\n\nUse these endpoints to create, update, list, and manage workflows, and to invoke them\nwith file input via `POST /v3/workflows/{workflowName}/call`.\n\nThe call endpoint accepts files as either multipart form data or JSON with base64-encoded\ncontent. In the Bem CLI, use `@path/to/file` inside JSON values to automatically read and\nencode files:\n\n```\nbem workflows call --workflow-name my-workflow \\\n  --input.single-file '{\"inputContent\": \"@file.pdf\", \"inputType\": \"pdf\"}' \\\n  --wait\n```",
 		Attributes: map[string]schema.Attribute{
-			"workflow_name": schema.StringAttribute{
-				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			"id": schema.StringAttribute{
+				Description:   "Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.",
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
+			},
+			"name": schema.StringAttribute{
+				Description:   "Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
 			},
 			"main_node_name": schema.StringAttribute{
 				Description: "Name of the entry-point node. Must not be a destination of any edge.",
-				Required:    true,
-			},
-			"name": schema.StringAttribute{
-				Description: "Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.",
 				Required:    true,
 			},
 			"nodes": schema.ListNestedAttribute{
@@ -142,9 +144,130 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					},
 				},
 			},
+			"created_at": schema.StringAttribute{
+				Description: "The date and time the workflow was created.",
+				Computed:    true,
+				CustomType:  timetypes.RFC3339Type{},
+			},
+			"email_address": schema.StringAttribute{
+				Description: "Inbound email address associated with the workflow, if any.",
+				Computed:    true,
+			},
 			"error": schema.StringAttribute{
 				Description: "Error message if the workflow retrieval failed.",
 				Computed:    true,
+			},
+			"updated_at": schema.StringAttribute{
+				Description: "The date and time the workflow was last updated.",
+				Computed:    true,
+				CustomType:  timetypes.RFC3339Type{},
+			},
+			"version_num": schema.Int64Attribute{
+				Description: "Version number of this workflow version.",
+				Computed:    true,
+			},
+			"audit": schema.SingleNestedAttribute{
+				Description: "Audit trail information.",
+				Computed:    true,
+				CustomType:  customfield.NewNestedObjectType[WorkflowAuditModel](ctx),
+				Attributes: map[string]schema.Attribute{
+					"version_created_by": schema.SingleNestedAttribute{
+						Description: "Information about who created the current version.",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectType[WorkflowAuditVersionCreatedByModel](ctx),
+						Attributes: map[string]schema.Attribute{
+							"created_at": schema.StringAttribute{
+								Description: "The date and time the action was created.",
+								Computed:    true,
+								CustomType:  timetypes.RFC3339Type{},
+							},
+							"user_action_id": schema.StringAttribute{
+								Description: "Unique identifier of the user action.",
+								Computed:    true,
+							},
+							"api_key_name": schema.StringAttribute{
+								Description: "API key name. Present for API key-initiated actions.",
+								Computed:    true,
+							},
+							"email_address": schema.StringAttribute{
+								Description: "Email address. Present for email-initiated actions.",
+								Computed:    true,
+							},
+							"user_email": schema.StringAttribute{
+								Description: "User's email address. Present for user-initiated actions.",
+								Computed:    true,
+							},
+							"user_id": schema.StringAttribute{
+								Description: "User's ID. Present for user-initiated actions.",
+								Computed:    true,
+							},
+						},
+					},
+					"workflow_created_by": schema.SingleNestedAttribute{
+						Description: "Information about who created the workflow.",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectType[WorkflowAuditWorkflowCreatedByModel](ctx),
+						Attributes: map[string]schema.Attribute{
+							"created_at": schema.StringAttribute{
+								Description: "The date and time the action was created.",
+								Computed:    true,
+								CustomType:  timetypes.RFC3339Type{},
+							},
+							"user_action_id": schema.StringAttribute{
+								Description: "Unique identifier of the user action.",
+								Computed:    true,
+							},
+							"api_key_name": schema.StringAttribute{
+								Description: "API key name. Present for API key-initiated actions.",
+								Computed:    true,
+							},
+							"email_address": schema.StringAttribute{
+								Description: "Email address. Present for email-initiated actions.",
+								Computed:    true,
+							},
+							"user_email": schema.StringAttribute{
+								Description: "User's email address. Present for user-initiated actions.",
+								Computed:    true,
+							},
+							"user_id": schema.StringAttribute{
+								Description: "User's ID. Present for user-initiated actions.",
+								Computed:    true,
+							},
+						},
+					},
+					"workflow_last_updated_by": schema.SingleNestedAttribute{
+						Description: "Information about who last updated the workflow.",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectType[WorkflowAuditWorkflowLastUpdatedByModel](ctx),
+						Attributes: map[string]schema.Attribute{
+							"created_at": schema.StringAttribute{
+								Description: "The date and time the action was created.",
+								Computed:    true,
+								CustomType:  timetypes.RFC3339Type{},
+							},
+							"user_action_id": schema.StringAttribute{
+								Description: "Unique identifier of the user action.",
+								Computed:    true,
+							},
+							"api_key_name": schema.StringAttribute{
+								Description: "API key name. Present for API key-initiated actions.",
+								Computed:    true,
+							},
+							"email_address": schema.StringAttribute{
+								Description: "Email address. Present for email-initiated actions.",
+								Computed:    true,
+							},
+							"user_email": schema.StringAttribute{
+								Description: "User's email address. Present for user-initiated actions.",
+								Computed:    true,
+							},
+							"user_id": schema.StringAttribute{
+								Description: "User's ID. Present for user-initiated actions.",
+								Computed:    true,
+							},
+						},
+					},
+				},
 			},
 			"connector_errors": schema.ListNestedAttribute{
 				Description: "Per-connector failures from the diff/apply phase. Empty or omitted when all\noperations succeeded.",

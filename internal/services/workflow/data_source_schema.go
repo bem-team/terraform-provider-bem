@@ -8,9 +8,11 @@ import (
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/datasourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -21,8 +23,11 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		MarkdownDescription: "Workflows orchestrate one or more functions into a directed acyclic graph (DAG) for document processing.\n\nUse these endpoints to create, update, list, and manage workflows, and to invoke them\nwith file input via `POST /v3/workflows/{workflowName}/call`.\n\nThe call endpoint accepts files as either multipart form data or JSON with base64-encoded\ncontent. In the Bem CLI, use `@path/to/file` inside JSON values to automatically read and\nencode files:\n\n```\nbem workflows call --workflow-name my-workflow \\\n  --input.single-file '{\"inputContent\": \"@file.pdf\", \"inputType\": \"pdf\"}' \\\n  --wait\n```",
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"workflow_name": schema.StringAttribute{
-				Required: true,
+				Optional: true,
 			},
 			"error": schema.StringAttribute{
 				Description: "Error message if the workflow retrieval failed.",
@@ -285,6 +290,42 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 					},
 				},
 			},
+			"find_one_by": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"display_name": schema.StringAttribute{
+						Optional: true,
+					},
+					"function_ids": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+					"function_names": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+					"sort_order": schema.StringAttribute{
+						Description: `Available values: "asc", "desc".`,
+						Computed:    true,
+						Optional:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOfCaseInsensitive("asc", "desc"),
+						},
+					},
+					"tags": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+					"workflow_ids": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+					"workflow_names": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+				},
+			},
 		},
 	}
 }
@@ -294,5 +335,7 @@ func (d *WorkflowDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 }
 
 func (d *WorkflowDataSource) ConfigValidators(_ context.Context) []datasource.ConfigValidator {
-	return []datasource.ConfigValidator{}
+	return []datasource.ConfigValidator{
+		datasourcevalidator.ExactlyOneOf(path.MatchRoot("workflow_name"), path.MatchRoot("find_one_by")),
+	}
 }
