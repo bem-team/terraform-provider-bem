@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 (2026-04-23)
+
+Full Changelog: [v0.1.0...v0.1.1](https://github.com/bem-team/terraform-provider-bem/compare/v0.1.0...v0.1.1)
+
+### Bug Fixes
+
+* **tests:** update hc-install to fix PGP key mismatch ([c8a14ed](https://github.com/bem-team/terraform-provider-bem/commit/c8a14ed550d10ae12b8c5ed7ce012817ede31ce5))
+
+
+### Chores
+
+* add local tmpfile directory ([c011672](https://github.com/bem-team/terraform-provider-bem/commit/c011672efbb94be8b1c035ffb74a8608ef173043))
+
 ## 0.1.0 (2026-04-22)
 
 Full Changelog: [v0.0.1...v0.1.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.0.1...v0.1.0)
