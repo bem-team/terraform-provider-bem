@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3 (2026-04-24)
+
+Full Changelog: [v0.1.2...v0.1.3](https://github.com/bem-team/terraform-provider-bem/compare/v0.1.2...v0.1.3)
+
+### Bug Fixes
+
+* **function:** set id from function_name in Create, Update, and Read ([a67aa43](https://github.com/bem-team/terraform-provider-bem/commit/a67aa437ab73d117ee65ac05efa00c8479e90aee))
+* **workflow:** unwrap envelope in Read and ImportState ([dc2c43a](https://github.com/bem-team/terraform-provider-bem/commit/dc2c43a4f1becf61f0b12f84f8da77a8f50957bb))
+
 ## 0.1.2 (2026-04-24)
 
 Full Changelog: [v0.1.1...v0.1.2](https://github.com/bem-team/terraform-provider-bem/compare/v0.1.1...v0.1.2)
