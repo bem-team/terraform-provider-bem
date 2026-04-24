@@ -86,6 +86,7 @@ func (r *FunctionResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.FunctionName
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -133,6 +134,7 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.FunctionName
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -168,6 +170,7 @@ func (r *FunctionResource) Read(ctx context.Context, req resource.ReadRequest, r
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.FunctionName
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
