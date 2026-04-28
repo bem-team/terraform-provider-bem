@@ -61,18 +61,7 @@ data "bem_functions" "example_functions" {
 Read-Only:
 
 - `audit` (Attributes) Audit trail information for the function. (see [below for nested schema](#nestedatt--items--audit))
-- `classifications` (Attributes List) V3 create/update variants of the shared function payloads.
-
-The V3 Functions API no longer accepts the legacy `transform` or `analyze`
-function types when creating new functions or updating existing ones — both
-have been unified under `extract`. Existing functions of those types remain
-readable and callable via V3, so the V3 read-side unions still include
-`transform` and `analyze` variants.
-
-The V3 API also renames the internal `route` function type to `classify` on
-the wire, and the associated `routes` field to `classifications` (type
-`ClassificationList`). Platform-internal storage and processing still use
-`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce. (see [below for nested schema](#nestedatt--items--classifications))
+- `classifications` (Attributes List) List of classifications a classify function can produce. Shares the underlying route list shape. (see [below for nested schema](#nestedatt--items--classifications))
 - `config` (Attributes) Configuration for enrich function with semantic search steps.
 
 **How Enrich Functions Work:**
@@ -99,7 +88,8 @@ semantic search against collections, and inject the results back into the data.
 Available values: "webhook", "s3", "google_drive".
 - `display_name` (String) Display name of function. Human-readable name to help you identify the function.
 - `email_address` (String) Email address automatically created by bem. You can forward emails with or without attachments, to be transformed.
-- `enable_bounding_boxes` (Boolean) Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.
+- `enable_bounding_boxes` (Boolean) Whether bounding box extraction is enabled. Applies to vision input types
+(pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.
 When true, the function returns the document regions (page, coordinates) from which each
 field was extracted.
 - `function_id` (String) Unique identifier of function.
@@ -109,6 +99,12 @@ field was extracted.
 Available values: "standard".
 - `output_schema` (String) Desired output structure defined in standard JSON Schema convention.
 - `output_schema_name` (String) Name of output schema object.
+- `parse_config` (Attributes) Per-version configuration for a Parse function.
+
+Parse renders document pages (PDF, image) via vision LLM and emits
+structured JSON. The two toggles below independently control entity
+extraction (a per-call output concern) and cross-document memory
+linking (an environment-wide concern). (see [below for nested schema](#nestedatt--items--parse_config))
 - `pre_count` (Boolean) Reducing the risk of the model stopping early on long documents.
 Trade-off: Increases total latency.
 - `print_page_split_config` (Attributes) Configuration for print page splitting. (see [below for nested schema](#nestedatt--items--print_page_split_config))
@@ -123,7 +119,7 @@ perform calculations, and create new data structures tailored to your needs.
 Available values: "print_page", "semantic_page".
 - `tabular_chunking_enabled` (Boolean) Whether tabular chunking is enabled on the pipeline. This processes tables in CSV/Excel in row batches, rather than all rows at once.
 - `tags` (List of String) Array of tags to categorize and organize functions.
-- `type` (String) Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich".
+- `type` (String) Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".
 - `used_in_workflows` (Attributes List) List of workflows that use this function. (see [below for nested schema](#nestedatt--items--used_in_workflows))
 - `version_num` (Number) Version number of function.
 - `webhook_signing_enabled` (Boolean) Whether webhook payloads are signed with an HMAC-SHA256 `bem-signature` header.
@@ -276,6 +272,28 @@ Results are always returned as an array (list) and automatically sorted by cosin
 - 1: Returns array with single best match: `[{...}]`
 - >1: Returns array with multiple matches: `[{...}, {...}, ...]`
 
+
+
+<a id="nestedatt--items--parse_config"></a>
+### Nested Schema for `items.parse_config`
+
+Read-Only:
+
+- `extract_entities` (Boolean) When true, extract named entities (people, organizations, products,
+studies, identifiers, etc.) and the relationships between them, and
+dedupe by canonical name within the document. When false, only
+`sections[]` is extracted; `entities[]` and `relationships[]` come
+back empty in the parse output. Defaults to true.
+- `link_across_documents` (Boolean) When true, link this document's entities to entities seen in earlier
+documents in this environment, building one canonical record per
+real-world thing across the corpus. Visible in the Memory tab and
+queryable via `POST /v3/fs` (op=find / open / xref). Doesn't change
+this call's parse output. Requires `extractEntities=true`. Defaults
+to true.
+- `schema` (String) Optional JSONSchema. When provided, each chunk performs schema-guided
+extraction. When absent, chunks perform open-ended discovery and
+return sections, entities, and relationships per the discovery
+schema.
 
 
 <a id="nestedatt--items--print_page_split_config"></a>
