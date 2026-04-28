@@ -19,9 +19,11 @@ type FunctionModel struct {
 	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`
 	DestinationType         types.String                                    `tfsdk:"destination_type" json:"destinationType,optional,no_refresh"`
 	DisplayName             types.String                                    `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
+	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional,no_refresh"`
 	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
+	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,optional,no_refresh"`
 	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh"`
 	S3Prefix                types.String                                    `tfsdk:"s3_prefix" json:"s3Prefix,optional,no_refresh"`
 	ShapingSchema           types.String                                    `tfsdk:"shaping_schema" json:"shapingSchema,optional,no_refresh"`
@@ -32,6 +34,7 @@ type FunctionModel struct {
 	Tags                    *[]types.String                                 `tfsdk:"tags" json:"tags,optional,no_refresh"`
 	Classifications         *[]*FunctionClassificationsModel                `tfsdk:"classifications" json:"classifications,optional,no_refresh"`
 	Config                  *FunctionConfigModel                            `tfsdk:"config" json:"config,optional,no_refresh"`
+	ParseConfig             *FunctionParseConfigModel                       `tfsdk:"parse_config" json:"parseConfig,optional,no_refresh"`
 	PrintPageSplitConfig    *FunctionPrintPageSplitConfigModel              `tfsdk:"print_page_split_config" json:"printPageSplitConfig,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
 	OutputSchema            jsontypes.Normalized                            `tfsdk:"output_schema" json:"outputSchema,optional,no_refresh"`
@@ -87,6 +90,12 @@ type FunctionConfigStepsModel struct {
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed_optional"`
 }
 
+type FunctionParseConfigModel struct {
+	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,optional"`
+	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,optional"`
+	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,optional"`
+}
+
 type FunctionPrintPageSplitConfigModel struct {
 	NextFunctionID   types.String `tfsdk:"next_function_id" json:"nextFunctionID,optional"`
 	NextFunctionName types.String `tfsdk:"next_function_name" json:"nextFunctionName,optional"`
@@ -132,6 +141,7 @@ type FunctionFunctionModel struct {
 	JoinType                types.String                                                           `tfsdk:"join_type" json:"joinType,computed"`
 	ShapingSchema           types.String                                                           `tfsdk:"shaping_schema" json:"shapingSchema,computed"`
 	Config                  customfield.NestedObject[FunctionFunctionConfigModel]                  `tfsdk:"config" json:"config,computed"`
+	ParseConfig             customfield.NestedObject[FunctionFunctionParseConfigModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
 }
 
 type FunctionFunctionAuditModel struct {
@@ -224,4 +234,10 @@ type FunctionFunctionConfigStepsModel struct {
 	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed"`
 	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed"`
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
+}
+
+type FunctionFunctionParseConfigModel struct {
+	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
+	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
+	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
 }

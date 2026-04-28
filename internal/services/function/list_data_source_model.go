@@ -117,6 +117,7 @@ type FunctionsItemsDataSourceModel struct {
 	JoinType                types.String                                                              `tfsdk:"join_type" json:"joinType,computed"`
 	ShapingSchema           types.String                                                              `tfsdk:"shaping_schema" json:"shapingSchema,computed"`
 	Config                  customfield.NestedObject[FunctionsConfigDataSourceModel]                  `tfsdk:"config" json:"config,computed"`
+	ParseConfig             customfield.NestedObject[FunctionsParseConfigDataSourceModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
 }
 
 type FunctionsAuditDataSourceModel struct {
@@ -209,4 +210,10 @@ type FunctionsConfigStepsDataSourceModel struct {
 	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed"`
 	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed"`
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
+}
+
+type FunctionsParseConfigDataSourceModel struct {
+	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
+	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
+	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
 }
