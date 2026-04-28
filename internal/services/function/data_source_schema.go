@@ -63,7 +63,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"type": schema.StringAttribute{
-						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
+						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".`,
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
@@ -76,6 +76,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 								"join",
 								"payload_shaping",
 								"enrich",
+								"parse",
 							),
 						},
 					},
@@ -224,7 +225,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						},
 					},
 					"enable_bounding_boxes": schema.BoolAttribute{
-						Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
+						Description: "Whether bounding box extraction is enabled. Applies to vision input types\n(pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
 						Computed:    true,
 					},
 					"pre_count": schema.BoolAttribute{
@@ -232,7 +233,7 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"classifications": schema.ListNestedAttribute{
-						Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
+						Description: "List of classifications a classify function can produce. Shares the underlying route list shape.",
 						Computed:    true,
 						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionClassificationsDataSourceModel](ctx),
 						NestedObject: schema.NestedAttributeObject{
@@ -436,6 +437,26 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 							},
 						},
 					},
+					"parse_config": schema.SingleNestedAttribute{
+						Description: "Per-version configuration for a Parse function.\n\nParse renders document pages (PDF, image) via vision LLM and emits\nstructured JSON. The two toggles below independently control entity\nextraction (a per-call output concern) and cross-document memory\nlinking (an environment-wide concern).",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectType[FunctionFunctionParseConfigDataSourceModel](ctx),
+						Attributes: map[string]schema.Attribute{
+							"extract_entities": schema.BoolAttribute{
+								Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
+								Computed:    true,
+							},
+							"link_across_documents": schema.BoolAttribute{
+								Description: "When true, link this document's entities to entities seen in earlier\ndocuments in this environment, building one canonical record per\nreal-world thing across the corpus. Visible in the Memory tab and\nqueryable via `POST /v3/fs` (op=find / open / xref). Doesn't change\nthis call's parse output. Requires `extractEntities=true`. Defaults\nto true.",
+								Computed:    true,
+							},
+							"schema": schema.StringAttribute{
+								Description: "Optional JSONSchema. When provided, each chunk performs schema-guided\nextraction. When absent, chunks perform open-ended discovery and\nreturn sections, entities, and relationships per the discovery\nschema.",
+								Computed:    true,
+								CustomType:  jsontypes.NormalizedType{},
+							},
+						},
+					},
 				},
 			},
 			"find_one_by": schema.SingleNestedAttribute{
@@ -472,12 +493,14 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 									"transform",
 									"extract",
 									"route",
+									"classify",
 									"send",
 									"split",
 									"join",
 									"analyze",
 									"payload_shaping",
 									"enrich",
+									"parse",
 								),
 							),
 						},

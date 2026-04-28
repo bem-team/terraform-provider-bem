@@ -42,7 +42,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Required:    true,
 			},
 			"type": schema.StringAttribute{
-				Description: `Available values: "extract", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
+				Description: `Available values: "extract", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".`,
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -53,6 +53,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						"join",
 						"payload_shaping",
 						"enrich",
+						"parse",
 					),
 				},
 			},
@@ -75,6 +76,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Display name of function. Human-readable name to help you identify the function.",
 				Optional:    true,
 			},
+			"enable_bounding_boxes": schema.BoolAttribute{
+				Description: "Whether bounding box extraction is enabled. Applies to vision input types\n(pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted. Enabling this automatically configures the function to use the bounding\nbox model. Disabling resets to the default.",
+				Optional:    true,
+			},
 			"google_drive_folder_id": schema.StringAttribute{
 				Description: "Google Drive folder ID. Required when destinationType is google_drive. Managed via Paragon OAuth.",
 				Optional:    true,
@@ -88,6 +93,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			},
 			"output_schema_name": schema.StringAttribute{
 				Description: "Name of output schema object.",
+				Optional:    true,
+			},
+			"pre_count": schema.BoolAttribute{
+				Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency. Compatible with\n`enableBoundingBoxes`.",
 				Optional:    true,
 			},
 			"s3_bucket": schema.StringAttribute{
@@ -127,7 +136,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				ElementType: types.StringType,
 			},
 			"classifications": schema.ListNestedAttribute{
-				Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
+				Description: "List of classifications a classify function can produce. Shares the underlying route list shape.",
 				Optional:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -237,6 +246,25 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					},
 				},
 			},
+			"parse_config": schema.SingleNestedAttribute{
+				Description: "Per-version configuration for a Parse function.\n\nParse renders document pages (PDF, image) via vision LLM and emits\nstructured JSON. The two toggles below independently control entity\nextraction (a per-call output concern) and cross-document memory\nlinking (an environment-wide concern).",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"extract_entities": schema.BoolAttribute{
+						Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
+						Optional:    true,
+					},
+					"link_across_documents": schema.BoolAttribute{
+						Description: "When true, link this document's entities to entities seen in earlier\ndocuments in this environment, building one canonical record per\nreal-world thing across the corpus. Visible in the Memory tab and\nqueryable via `POST /v3/fs` (op=find / open / xref). Doesn't change\nthis call's parse output. Requires `extractEntities=true`. Defaults\nto true.",
+						Optional:    true,
+					},
+					"schema": schema.StringAttribute{
+						Description: "Optional JSONSchema. When provided, each chunk performs schema-guided\nextraction. When absent, chunks perform open-ended discovery and\nreturn sections, entities, and relationships per the discovery\nschema.",
+						Optional:    true,
+						CustomType:  jsontypes.NormalizedType{},
+					},
+				},
+			},
 			"print_page_split_config": schema.SingleNestedAttribute{
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
@@ -310,7 +338,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"type": schema.StringAttribute{
-						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich".`,
+						Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".`,
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
@@ -323,6 +351,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								"join",
 								"payload_shaping",
 								"enrich",
+								"parse",
 							),
 						},
 					},
@@ -471,7 +500,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						},
 					},
 					"enable_bounding_boxes": schema.BoolAttribute{
-						Description: "Whether bounding box extraction is enabled. Only applicable to analyze and extract functions.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
+						Description: "Whether bounding box extraction is enabled. Applies to vision input types\n(pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted.",
 						Computed:    true,
 					},
 					"pre_count": schema.BoolAttribute{
@@ -479,7 +508,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"classifications": schema.ListNestedAttribute{
-						Description: "V3 create/update variants of the shared function payloads.\n\nThe V3 Functions API no longer accepts the legacy `transform` or `analyze`\nfunction types when creating new functions or updating existing ones — both\nhave been unified under `extract`. Existing functions of those types remain\nreadable and callable via V3, so the V3 read-side unions still include\n`transform` and `analyze` variants.\n\nThe V3 API also renames the internal `route` function type to `classify` on\nthe wire, and the associated `routes` field to `classifications` (type\n`ClassificationList`). Platform-internal storage and processing still use\n`route` / `routes`; the rename is applied only at the V3 API boundary.V3-facing name for the list of classifications a classify function can produce.",
+						Description: "List of classifications a classify function can produce. Shares the underlying route list shape.",
 						Computed:    true,
 						CustomType:  customfield.NewNestedObjectListType[FunctionFunctionClassificationsModel](ctx),
 						NestedObject: schema.NestedAttributeObject{
@@ -683,6 +712,26 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 										},
 									},
 								},
+							},
+						},
+					},
+					"parse_config": schema.SingleNestedAttribute{
+						Description: "Per-version configuration for a Parse function.\n\nParse renders document pages (PDF, image) via vision LLM and emits\nstructured JSON. The two toggles below independently control entity\nextraction (a per-call output concern) and cross-document memory\nlinking (an environment-wide concern).",
+						Computed:    true,
+						CustomType:  customfield.NewNestedObjectType[FunctionFunctionParseConfigModel](ctx),
+						Attributes: map[string]schema.Attribute{
+							"extract_entities": schema.BoolAttribute{
+								Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
+								Computed:    true,
+							},
+							"link_across_documents": schema.BoolAttribute{
+								Description: "When true, link this document's entities to entities seen in earlier\ndocuments in this environment, building one canonical record per\nreal-world thing across the corpus. Visible in the Memory tab and\nqueryable via `POST /v3/fs` (op=find / open / xref). Doesn't change\nthis call's parse output. Requires `extractEntities=true`. Defaults\nto true.",
+								Computed:    true,
+							},
+							"schema": schema.StringAttribute{
+								Description: "Optional JSONSchema. When provided, each chunk performs schema-guided\nextraction. When absent, chunks perform open-ended discovery and\nreturn sections, entities, and relationships per the discovery\nschema.",
+								Computed:    true,
+								CustomType:  jsontypes.NormalizedType{},
 							},
 						},
 					},
