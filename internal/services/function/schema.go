@@ -26,7 +26,7 @@ var _ resource.ResourceWithConfigValidators = (*FunctionResource)(nil)
 
 func ResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
-		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Extract**: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extraction\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n- **Send**: Deliver workflow outputs to downstream destinations\n\nUse these endpoints to create, update, list, and manage your functions.",
+		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Extract**: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extraction\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Parse**: Render documents into a navigable structure of page-aware sections, named entities, and relationships — designed to be walked by an LLM agent via the [File System API](/api/v3/file-system) (`POST /v3/fs`). Two toggles, both `true` by default: `extractEntities` controls per-document entity and relationship extraction; `linkAcrossDocuments` merges entities into one canonical record per real-world thing across the environment, populating cross-document memory.\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n- **Send**: Deliver workflow outputs to downstream destinations\n\nUse these endpoints to create, update, list, and manage your functions.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description:   "Name of function. Must be UNIQUE on a per-environment basis.",
@@ -202,8 +202,8 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Description: "Field path where enriched results should be placed.\nUse simple field names (e.g., \"enriched_products\").\nResults are always injected as an array (list), regardless of topK value.",
 									Required:    true,
 								},
-								"include_cosine_distance": schema.BoolAttribute{
-									Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosineDistance` field.",
+								"include_score": schema.BoolAttribute{
+									Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosine_distance` field (semantic mode)\nor a `hybrid_score` field (hybrid mode).",
 									Optional:    true,
 								},
 								"include_subcollections": schema.BoolAttribute{
@@ -674,8 +674,8 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Description: "Field path where enriched results should be placed.\nUse simple field names (e.g., \"enriched_products\").\nResults are always injected as an array (list), regardless of topK value.",
 											Computed:    true,
 										},
-										"include_cosine_distance": schema.BoolAttribute{
-											Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosineDistance` field.",
+										"include_score": schema.BoolAttribute{
+											Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosine_distance` field (semantic mode)\nor a `hybrid_score` field (hybrid mode).",
 											Computed:    true,
 										},
 										"include_subcollections": schema.BoolAttribute{
