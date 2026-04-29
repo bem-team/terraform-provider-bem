@@ -195,7 +195,7 @@ type FunctionFunctionConfigStepsDataSourceModel struct {
 	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,computed"`
 	SourceField           types.String  `tfsdk:"source_field" json:"sourceField,computed"`
 	TargetField           types.String  `tfsdk:"target_field" json:"targetField,computed"`
-	IncludeCosineDistance types.Bool    `tfsdk:"include_cosine_distance" json:"includeCosineDistance,computed"`
+	IncludeScore          types.Bool    `tfsdk:"include_score" json:"includeScore,computed"`
 	IncludeSubcollections types.Bool    `tfsdk:"include_subcollections" json:"includeSubcollections,computed"`
 	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed"`
 	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed"`
