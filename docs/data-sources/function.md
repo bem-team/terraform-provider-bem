@@ -4,7 +4,7 @@ page_title: "bem_function Data Source - Bem"
 subcategory: ""
 description: |-
   Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:
-  Extract: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extractionRoute: Direct data to different processing paths based on conditionsSplit: Break multi-page documents into individual pages for parallel processingJoin: Combine outputs from multiple function calls into a single resultPayload Shaping: Transform and restructure data using JMESPath expressionsEnrich: Enhance data with semantic search against collectionsSend: Deliver workflow outputs to downstream destinations
+  Extract: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extractionRoute: Direct data to different processing paths based on conditionsSplit: Break multi-page documents into individual pages for parallel processingJoin: Combine outputs from multiple function calls into a single resultParse: Render documents into a navigable structure of page-aware sections, named entities, and relationships — designed to be walked by an LLM agent via the File System API (POST /v3/fs). Two toggles, both true by default: extractEntities controls per-document entity and relationship extraction; linkAcrossDocuments merges entities into one canonical record per real-world thing across the environment, populating cross-document memory.Payload Shaping: Transform and restructure data using JMESPath expressionsEnrich: Enhance data with semantic search against collectionsSend: Deliver workflow outputs to downstream destinations
   Use these endpoints to create, update, list, and manage your functions.
 ---
 
@@ -16,6 +16,7 @@ Functions are the core building blocks of data transformation in Bem. Each funct
 - **Route**: Direct data to different processing paths based on conditions
 - **Split**: Break multi-page documents into individual pages for parallel processing
 - **Join**: Combine outputs from multiple function calls into a single result
+- **Parse**: Render documents into a navigable structure of page-aware sections, named entities, and relationships — designed to be walked by an LLM agent via the [File System API](/api/v3/file-system) (`POST /v3/fs`). Two toggles, both `true` by default: `extractEntities` controls per-document entity and relationship extraction; `linkAcrossDocuments` merges entities into one canonical record per real-world thing across the environment, populating cross-document memory.
 - **Payload Shaping**: Transform and restructure data using JMESPath expressions
 - **Enrich**: Enhance data with semantic search against collections
 - **Send**: Deliver workflow outputs to downstream destinations
@@ -231,11 +232,12 @@ Read-Only:
 
 - `collection_name` (String) Name of the collection to search against. The collection must exist and contain items.
 Supports hierarchical paths when used with `includeSubcollections`.
-- `include_cosine_distance` (Boolean) Whether to include cosine distance scores in results.
+- `include_score` (Boolean) Whether to include cosine distance scores in results.
 Cosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).
 Lower scores indicate better semantic similarity.
 
-When enabled, each result includes a `cosineDistance` field.
+When enabled, each result includes a `cosine_distance` field (semantic mode)
+or a `hybrid_score` field (hybrid mode).
 - `include_subcollections` (Boolean) When true, searches all collections under the hierarchical path.
 For example, "customers" will match "customers", "customers.premium", etc.
 - `score_threshold` (Number) Maximum cosine distance threshold for filtering results (default: 0.6).
