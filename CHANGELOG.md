@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 (2026-05-06)
+
+Full Changelog: [v0.3.0...v0.3.1](https://github.com/bem-team/terraform-provider-bem/compare/v0.3.0...v0.3.1)
+
+### Chores
+
+* **internal:** codegen related update ([4ba6ead](https://github.com/bem-team/terraform-provider-bem/commit/4ba6ead280b979c4b972328d951c08bc295d725d))
+
 ## 0.3.0 (2026-04-29)
 
 Full Changelog: [v0.2.0...v0.3.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.2.0...v0.3.0)
