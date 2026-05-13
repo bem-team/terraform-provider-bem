@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 (2026-05-08)
+
+Full Changelog: [v0.3.1...v0.3.2](https://github.com/bem-team/terraform-provider-bem/compare/v0.3.1...v0.3.2)
+
+### Chores
+
+* redact api-key headers in debug logs ([0d199f3](https://github.com/bem-team/terraform-provider-bem/commit/0d199f3b539a082ad215f9a31590488f42cf3dc0))
+
 ## 0.3.1 (2026-05-06)
 
 Full Changelog: [v0.3.0...v0.3.1](https://github.com/bem-team/terraform-provider-bem/compare/v0.3.0...v0.3.1)
