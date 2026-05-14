@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 (2026-05-14)
+
+Full Changelog: [v0.4.0...v0.5.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.4.0...v0.5.0)
+
+### Features
+
+* **api:** function regression and view endpoint support ([d9d60cb](https://github.com/bem-team/terraform-provider-bem/commit/d9d60cb684dfc2bf2f23672607ca518b52529abc))
+
 ## 0.4.0 (2026-05-14)
 
 Full Changelog: [v0.3.2...v0.4.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.3.2...v0.4.0)

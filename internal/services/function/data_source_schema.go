@@ -24,7 +24,6 @@ var _ datasource.DataSourceWithConfigValidators = (*FunctionDataSource)(nil)
 
 func DataSourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
-		MarkdownDescription: "Functions are the core building blocks of data transformation in Bem. Each function type serves a specific purpose:\n\n- **Extract**: Extract structured JSON data from unstructured documents (PDFs, emails, images, spreadsheets), with optional layout-aware bounding-box extraction\n- **Route**: Direct data to different processing paths based on conditions\n- **Split**: Break multi-page documents into individual pages for parallel processing\n- **Join**: Combine outputs from multiple function calls into a single result\n- **Parse**: Render documents into a navigable structure of page-aware sections, named entities, and relationships — designed to be walked by an LLM agent via the [File System API](/api/v3/file-system) (`POST /v3/fs`). Two toggles, both `true` by default: `extractEntities` controls per-document entity and relationship extraction; `linkAcrossDocuments` merges entities into one canonical record per real-world thing across the environment, populating cross-document memory.\n- **Payload Shaping**: Transform and restructure data using JMESPath expressions\n- **Enrich**: Enhance data with semantic search against collections\n- **Send**: Deliver workflow outputs to downstream destinations\n\nUse these endpoints to create, update, list, and manage your functions.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
