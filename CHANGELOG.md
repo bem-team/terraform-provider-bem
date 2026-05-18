@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (2026-05-18)
+
+Full Changelog: [v0.5.0...v0.5.1](https://github.com/bem-team/terraform-provider-bem/compare/v0.5.0...v0.5.1)
+
+### Chores
+
+* update terraform-plugin-framework to v1.19.0 ([ee6a3bf](https://github.com/bem-team/terraform-provider-bem/commit/ee6a3bfb19d3c0e186e6b7c0c0dba821fd56d585))
+
 ## 0.5.0 (2026-05-14)
 
 Full Changelog: [v0.4.0...v0.5.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.4.0...v0.5.0)
