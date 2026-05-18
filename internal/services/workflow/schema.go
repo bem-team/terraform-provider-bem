@@ -26,12 +26,12 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"id": schema.StringAttribute{
 				Description:   "Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.",
 				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown(), stringplanmodifier.RequiresReplace()},
 			},
 			"name": schema.StringAttribute{
 				Description:   "Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.",
 				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown(), stringplanmodifier.RequiresReplace()},
 			},
 			"main_node_name": schema.StringAttribute{
 				Description: "Name of the entry-point node. Must not be a destination of any edge.",
