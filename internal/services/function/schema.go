@@ -249,6 +249,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Description: "Per-version configuration for a Parse function.\n\nParse renders document pages (PDF, image) via vision LLM and emits\nstructured JSON. The two toggles below independently control entity\nextraction (a per-call output concern) and cross-document memory\nlinking (an environment-wide concern).",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
+					"enable_bounding_boxes": schema.BoolAttribute{
+						Description: "When true, return per-section and per-entity-mention coordinates in\nthe parse event's `fieldBoundingBoxes` map (same shape as Extract:\nJSON Pointer key → array of `{page, left, top, width, height}` with\ncoordinates normalized to [0, 1]). Keys are `/sections/{N}` and\n`/entities/{N}/occurrences/{M}` into the parse output. Only applies\nto the open-ended discovery path (no `schema`) and to vision input\ntypes. Bedrock-backed parse functions silently return an empty map\n(no native bbox support). Defaults to false.",
+						Optional:    true,
+					},
 					"extract_entities": schema.BoolAttribute{
 						Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
 						Optional:    true,
@@ -719,6 +723,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 						CustomType:  customfield.NewNestedObjectType[FunctionFunctionParseConfigModel](ctx),
 						Attributes: map[string]schema.Attribute{
+							"enable_bounding_boxes": schema.BoolAttribute{
+								Description: "When true, return per-section and per-entity-mention coordinates in\nthe parse event's `fieldBoundingBoxes` map (same shape as Extract:\nJSON Pointer key → array of `{page, left, top, width, height}` with\ncoordinates normalized to [0, 1]). Keys are `/sections/{N}` and\n`/entities/{N}/occurrences/{M}` into the parse output. Only applies\nto the open-ended discovery path (no `schema`) and to vision input\ntypes. Bedrock-backed parse functions silently return an empty map\n(no native bbox support). Defaults to false.",
+								Computed:    true,
+							},
 							"extract_entities": schema.BoolAttribute{
 								Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
 								Computed:    true,
