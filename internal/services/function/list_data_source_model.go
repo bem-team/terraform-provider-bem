@@ -213,6 +213,7 @@ type FunctionsConfigStepsDataSourceModel struct {
 }
 
 type FunctionsParseConfigDataSourceModel struct {
+	EnableBoundingBoxes types.Bool           `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
