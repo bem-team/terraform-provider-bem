@@ -107,6 +107,7 @@ type FunctionFunctionDataSourceModel struct {
 	JoinType                types.String                                                                     `tfsdk:"join_type" json:"joinType,computed"`
 	ShapingSchema           types.String                                                                     `tfsdk:"shaping_schema" json:"shapingSchema,computed"`
 	Config                  customfield.NestedObject[FunctionFunctionConfigDataSourceModel]                  `tfsdk:"config" json:"config,computed"`
+	ExtraConfig             customfield.NestedObject[FunctionFunctionExtraConfigDataSourceModel]             `tfsdk:"extra_config" json:"extraConfig,computed"`
 	ParseConfig             customfield.NestedObject[FunctionFunctionParseConfigDataSourceModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
 }
 
@@ -202,8 +203,11 @@ type FunctionFunctionConfigStepsDataSourceModel struct {
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
 }
 
+type FunctionFunctionExtraConfigDataSourceModel struct {
+	EnableBoundingBoxes types.Bool `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
+}
+
 type FunctionFunctionParseConfigDataSourceModel struct {
-	EnableBoundingBoxes types.Bool           `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`

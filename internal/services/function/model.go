@@ -34,6 +34,7 @@ type FunctionModel struct {
 	Tags                    *[]types.String                                 `tfsdk:"tags" json:"tags,optional,no_refresh"`
 	Classifications         *[]*FunctionClassificationsModel                `tfsdk:"classifications" json:"classifications,optional,no_refresh"`
 	Config                  *FunctionConfigModel                            `tfsdk:"config" json:"config,optional,no_refresh"`
+	ExtraConfig             *FunctionExtraConfigModel                       `tfsdk:"extra_config" json:"extraConfig,optional,no_refresh"`
 	ParseConfig             *FunctionParseConfigModel                       `tfsdk:"parse_config" json:"parseConfig,optional,no_refresh"`
 	PrintPageSplitConfig    *FunctionPrintPageSplitConfigModel              `tfsdk:"print_page_split_config" json:"printPageSplitConfig,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
@@ -90,8 +91,11 @@ type FunctionConfigStepsModel struct {
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed_optional"`
 }
 
+type FunctionExtraConfigModel struct {
+	EnableBoundingBoxes types.Bool `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional"`
+}
+
 type FunctionParseConfigModel struct {
-	EnableBoundingBoxes types.Bool           `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional"`
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,optional"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,optional"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,optional"`
@@ -142,6 +146,7 @@ type FunctionFunctionModel struct {
 	JoinType                types.String                                                           `tfsdk:"join_type" json:"joinType,computed"`
 	ShapingSchema           types.String                                                           `tfsdk:"shaping_schema" json:"shapingSchema,computed"`
 	Config                  customfield.NestedObject[FunctionFunctionConfigModel]                  `tfsdk:"config" json:"config,computed"`
+	ExtraConfig             customfield.NestedObject[FunctionFunctionExtraConfigModel]             `tfsdk:"extra_config" json:"extraConfig,computed"`
 	ParseConfig             customfield.NestedObject[FunctionFunctionParseConfigModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
 }
 
@@ -237,8 +242,11 @@ type FunctionFunctionConfigStepsModel struct {
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
 }
 
+type FunctionFunctionExtraConfigModel struct {
+	EnableBoundingBoxes types.Bool `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
+}
+
 type FunctionFunctionParseConfigModel struct {
-	EnableBoundingBoxes types.Bool           `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed"`
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
