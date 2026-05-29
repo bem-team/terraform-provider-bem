@@ -3,7 +3,7 @@ module github.com/bem-team/terraform-provider-bem
 go 1.25.8
 
 require (
-	github.com/bem-team/bem-go-sdk v0.18.0
+	github.com/bem-team/bem-go-sdk v0.19.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/hashicorp/terraform-plugin-docs v0.24.0
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
