@@ -376,26 +376,30 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"config": schema.SingleNestedAttribute{
-						Description: "Configuration for enrich function with semantic search steps.\n\n**How Enrich Functions Work:**\n\nEnrich functions use semantic search to augment JSON data with relevant information from collections.\nThey take JSON input (typically from a transform function), extract specified fields, perform vector-based\nsemantic search against collections, and inject the results back into the data.\n\n**Input Requirements:**\n- Must receive JSON input (typically uploaded to S3 from a previous function)\n- Can be chained after transform or other functions that produce JSON output\n\n**Example Use Cases:**\n- Match product descriptions to SKU codes from a product catalog\n- Enrich customer data with account information\n- Link order line items to inventory records\n\n**Configuration:**\n- Define one or more enrichment steps\n- Each step extracts values, searches a collection, and injects results\n- Steps are executed sequentially",
+						Description: "Configuration for an enrich function.\n\n**How Enrich Functions Work:**\n\nEnrich functions augment JSON input with data from external sources. They take JSON input\n(typically from a previous function), extract specified fields, fetch or search for matching\ndata, and inject the results back into the JSON.\n\n**Data Sources:**\n- **Collections** (`source: \"collection\"`): Vector/keyword search against a BEM collection.\nBest for semantic matching against pre-indexed documents.\n- **Endpoints** (`source: \"endpoint\"`): HTTP call to any user-provided REST API.\nBest for looking up live data from CRMs, ERPs, or other external systems.\nOptionally uses LLM agent reasoning to rank candidates returned by the endpoint.\n\n**Input Requirements:**\n- Must receive JSON input (typically from a previous function's output)\n\n**Example Use Cases:**\n- Match product descriptions to SKU codes from a product catalog collection\n- Enrich customer data with account details from a CRM endpoint\n- Use LLM agent reasoning to fuzzy-match line item descriptions to catalog products\n\n**Configuration:**\n- Define named endpoints (for endpoint-source steps)\n- Define one or more enrichment steps; steps are executed sequentially",
 						Computed:    true,
 						CustomType:  customfield.NewNestedObjectType[FunctionFunctionConfigDataSourceModel](ctx),
 						Attributes: map[string]schema.Attribute{
 							"steps": schema.ListNestedAttribute{
-								Description: "Array of enrichment steps to execute sequentially",
+								Description: "Array of enrichment steps to execute sequentially.",
 								Computed:    true,
 								CustomType:  customfield.NewNestedObjectListType[FunctionFunctionConfigStepsDataSourceModel](ctx),
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
-										"collection_name": schema.StringAttribute{
-											Description: "Name of the collection to search against. The collection must exist and contain items.\nSupports hierarchical paths when used with `includeSubcollections`.",
-											Computed:    true,
-										},
 										"source_field": schema.StringAttribute{
-											Description: "JMESPath expression to extract source data for semantic search.\nCan extract single values or arrays. All extracted values will be used for search.",
+											Description: "JMESPath expression to extract source data.\nCan extract a single value or an array. Each extracted value is looked up independently.",
 											Computed:    true,
 										},
 										"target_field": schema.StringAttribute{
 											Description: "Field path where enriched results should be placed.\nUse simple field names (e.g., \"enriched_products\").\nResults are always injected as an array (list), regardless of topK value.",
+											Computed:    true,
+										},
+										"collection_name": schema.StringAttribute{
+											Description: "Name of the collection to search against.\nRequired when `source` is `\"collection\"`. The collection must exist and contain items.\nSupports hierarchical paths when used with `includeSubcollections`.",
+											Computed:    true,
+										},
+										"endpoint_name": schema.StringAttribute{
+											Description: "Name of an endpoint defined in `enrichConfig.endpoints`.\nRequired when `source` is `\"endpoint\"`.",
 											Computed:    true,
 										},
 										"include_score": schema.BoolAttribute{
@@ -424,12 +428,93 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 												),
 											},
 										},
+										"source": schema.StringAttribute{
+											Description: "Where to fetch enrichment data from (default: `\"collection\"`).\n\n- `\"collection\"`: Vector/keyword search against a BEM collection. Requires `collectionName`.\n- `\"endpoint\"`: HTTP call to a named endpoint defined in `enrichConfig.endpoints`. Requires `endpointName`.\nAvailable values: \"collection\", \"endpoint\".",
+											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOfCaseInsensitive("collection", "endpoint"),
+											},
+										},
 										"top_k": schema.Int64Attribute{
 											Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list) and automatically sorted by cosine distance\n(best match = lowest distance first).\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`",
 											Computed:    true,
 											Validators: []validator.Int64{
 												int64validator.Between(1, 100),
 											},
+										},
+									},
+								},
+							},
+							"endpoints": schema.ListNestedAttribute{
+								Description: "Named HTTP endpoints available to endpoint-source steps.\nEach endpoint must have a unique `name` referenced by the step's `endpointName`.\nRequired when any step uses `source: \"endpoint\"`.",
+								Computed:    true,
+								CustomType:  customfield.NewNestedObjectListType[FunctionFunctionConfigEndpointsDataSourceModel](ctx),
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"method": schema.StringAttribute{
+											Description: "HTTP method to use.\nAvailable values: \"GET\", \"POST\".",
+											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOfCaseInsensitive("GET", "POST"),
+											},
+										},
+										"name": schema.StringAttribute{
+											Description: "Unique name for this endpoint, referenced by enrichStep.endpointName.",
+											Computed:    true,
+										},
+										"url": schema.StringAttribute{
+											Description: "Full URL of the endpoint (must be http:// or https://).",
+											Computed:    true,
+										},
+										"body_template": schema.StringAttribute{
+											Description: "JSON body template for POST requests.\n**Required for POST endpoints.** Must contain the `{value}` placeholder, which is replaced\nwith the extracted source value at runtime.\n\nExample: `bodyTemplate: \"{\\\"query\\\": \\\"{value}\\\", \\\"limit\\\": 10}\"`",
+											Computed:    true,
+										},
+										"headers": schema.StringAttribute{
+											Description: "Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).",
+											Computed:    true,
+											CustomType:  jsontypes.NormalizedType{},
+										},
+										"match_instructions": schema.StringAttribute{
+											Description: "Natural-language instructions for LLM agent reasoning.\n\nWhen set, the candidates fetched from the endpoint are passed to an LLM with these\ninstructions, which selects the best match(es) and returns them with confidence scores.\nEach injected result has the shape `{ data, confidence, reasoning? }`.\n\nWhen omitted, the raw fetched value is injected without any LLM involvement.",
+											Computed:    true,
+										},
+										"match_top_k": schema.Int64Attribute{
+											Description: "Maximum number of ranked matches to return per source value when `matchInstructions`\nis set (default: 1). Ignored when `matchInstructions` is empty.",
+											Computed:    true,
+											Validators: []validator.Int64{
+												int64validator.Between(1, 100),
+											},
+										},
+										"max_candidates": schema.Int64Attribute{
+											Description: "LLM batch size during agent reasoning (default: 50). All candidates — across all\nfetched pages — are scored in batches of this size. Smaller values reduce per-call\ntoken usage; larger values mean fewer LLM calls. Ignored when `matchInstructions`\nis empty.",
+											Computed:    true,
+											Validators: []validator.Int64{
+												int64validator.AtLeast(1),
+											},
+										},
+										"max_pages": schema.Int64Attribute{
+											Description: "Maximum number of pages to fetch (default: 10). Acts as a safety cap against\ninfinite pagination loops when the server never returns an empty cursor.",
+											Computed:    true,
+											Validators: []validator.Int64{
+												int64validator.AtLeast(1),
+											},
+										},
+										"next_page_param": schema.StringAttribute{
+											Description: "Query parameter name used to pass the cursor on subsequent GET requests, or the\n`{placeholder}` name used in the POST `bodyTemplate` (e.g. `\"cursor\"`,\n`\"pageToken\"`, `\"offset\"`).\n\nMust be set together with `nextPagePath`.",
+											Computed:    true,
+										},
+										"next_page_path": schema.StringAttribute{
+											Description: "JMESPath expression applied to each raw response to extract the cursor or token\nfor the next page (e.g. `\"nextCursor\"`, `\"pagination.nextToken\"`). An absent,\nnull, or empty-string result stops pagination. Both string and numeric values are\nsupported — numbers are converted to their decimal string representation before\nbeing forwarded as a query parameter.\n\nMust be set together with `nextPageParam`.\n\n**Supported pagination styles:**\n- **Cursor/token-based** — server returns an opaque token in the response body\n(e.g. `{\"nextCursor\": \"abc123\"}`). Set `nextPagePath: \"nextCursor\"` and the\nplatform forwards it verbatim on the next request.\n- **Server-computed offset/page** — server echoes back the next offset or page\nnumber in the response body (e.g. `{\"nextOffset\": 50}` or `{\"nextPage\": 2}`).\nSet `nextPagePath: \"nextOffset\"` and the platform forwards the value as-is.\n\n**Not supported:**\n- **Client-computed offset** — APIs where the client must compute `offset += limit`\nitself (e.g. `?offset=0&limit=50` with no next-offset in the response). Workaround:\nask the API provider to return the next offset in the response body, or bake a\nfixed page size into the URL and use a server-side cursor instead.\n- **Client-computed page number** — APIs where the client increments `?page=N`\nitself with no next-page value in the response. Same workaround applies.\n- **Link header** — `Link: <url>; rel=\"next\"` in HTTP response headers. The\nplatform only inspects the response body.",
+											Computed:    true,
+										},
+										"query_param": schema.StringAttribute{
+											Description: "Query parameter name used to pass the extracted source value.\n**Required for GET endpoints.** The value is URL-encoded and appended as `?{queryParam}={sourceValue}`.\n\nExample: `queryParam: \"q\"` → `GET /products?q=blue+widget`",
+											Computed:    true,
+										},
+										"response_path": schema.StringAttribute{
+											Description: "JMESPath expression applied to the response body to extract the enrichment value.\nOmit to use the entire response body as the result.\n\n**For agent reasoning:** use a wildcard projection (e.g. `items[*]` or `results[*].data`)\nso the endpoint's list of candidates is flattened into an array before being passed to the LLM.\nA non-wildcard path (e.g. `data.product`) extracts a single value treated as one candidate.\n\n**Response size:** the platform reads at most 50 MB of the response body before decoding,\nregardless of the Content-Length header.",
+											Computed:    true,
 										},
 									},
 								},
