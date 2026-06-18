@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 (2026-06-18)
+
+Full Changelog: [v0.7.0...v0.8.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.7.0...v0.8.0)
+
+### Features
+
+* **api:** api update ([131aea2](https://github.com/bem-team/terraform-provider-bem/commit/131aea2f9a8e2eb0328c7f3ded8ba4084675f3cc))
+
+
+### Bug Fixes
+
+* **scripts:** export GOPRIVATE and use `go mod tidy -e` in scripts/generate-docs ([3cc9c38](https://github.com/bem-team/terraform-provider-bem/commit/3cc9c382128d36b6c9dce915a1dfe4694ac776dd))
+
+
+### Chores
+
+* **internal:** codegen related update ([dad3140](https://github.com/bem-team/terraform-provider-bem/commit/dad314084fff9f41996a095a50b774bbd7c15de9))
+* **internal:** codegen related update ([32e5f79](https://github.com/bem-team/terraform-provider-bem/commit/32e5f793dcb36d2950f8637a8ec1c2b43a9cafec))
+
 ## 0.7.0 (2026-05-26)
 
 Full Changelog: [v0.6.0...v0.7.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.6.0...v0.7.0)
