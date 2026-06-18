@@ -33,12 +33,12 @@ type FunctionModel struct {
 	WebhookURL              types.String                                    `tfsdk:"webhook_url" json:"webhookUrl,optional,no_refresh"`
 	Tags                    *[]types.String                                 `tfsdk:"tags" json:"tags,optional,no_refresh"`
 	Classifications         *[]*FunctionClassificationsModel                `tfsdk:"classifications" json:"classifications,optional,no_refresh"`
-	Config                  *FunctionConfigModel                            `tfsdk:"config" json:"config,optional,no_refresh"`
 	ExtraConfig             *FunctionExtraConfigModel                       `tfsdk:"extra_config" json:"extraConfig,optional,no_refresh"`
 	ParseConfig             *FunctionParseConfigModel                       `tfsdk:"parse_config" json:"parseConfig,optional,no_refresh"`
 	PrintPageSplitConfig    *FunctionPrintPageSplitConfigModel              `tfsdk:"print_page_split_config" json:"printPageSplitConfig,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
 	OutputSchema            jsontypes.Normalized                            `tfsdk:"output_schema" json:"outputSchema,optional,no_refresh"`
+	Config                  customfield.NestedObject[FunctionConfigModel]   `tfsdk:"config" json:"config,computed_optional,no_refresh"`
 	Function                customfield.NestedObject[FunctionFunctionModel] `tfsdk:"function" json:"function,computed"`
 }
 
@@ -76,21 +76,6 @@ type FunctionClassificationsRegexModel struct {
 	Patterns *[]types.String `tfsdk:"patterns" json:"patterns,optional"`
 }
 
-type FunctionConfigModel struct {
-	Steps *[]*FunctionConfigStepsModel `tfsdk:"steps" json:"steps,required"`
-}
-
-type FunctionConfigStepsModel struct {
-	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,required"`
-	SourceField           types.String  `tfsdk:"source_field" json:"sourceField,required"`
-	TargetField           types.String  `tfsdk:"target_field" json:"targetField,required"`
-	IncludeScore          types.Bool    `tfsdk:"include_score" json:"includeScore,optional"`
-	IncludeSubcollections types.Bool    `tfsdk:"include_subcollections" json:"includeSubcollections,optional"`
-	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed_optional"`
-	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed_optional"`
-	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed_optional"`
-}
-
 type FunctionExtraConfigModel struct {
 	EnableBoundingBoxes types.Bool `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional"`
 }
@@ -115,6 +100,40 @@ type FunctionSemanticPageSplitConfigItemClassesModel struct {
 	Description      types.String `tfsdk:"description" json:"description,optional"`
 	NextFunctionID   types.String `tfsdk:"next_function_id" json:"nextFunctionID,optional"`
 	NextFunctionName types.String `tfsdk:"next_function_name" json:"nextFunctionName,optional"`
+}
+
+type FunctionConfigModel struct {
+	Steps     *[]*FunctionConfigStepsModel                               `tfsdk:"steps" json:"steps,required"`
+	Endpoints customfield.NestedObjectList[FunctionConfigEndpointsModel] `tfsdk:"endpoints" json:"endpoints,computed_optional"`
+}
+
+type FunctionConfigStepsModel struct {
+	SourceField           types.String  `tfsdk:"source_field" json:"sourceField,required"`
+	TargetField           types.String  `tfsdk:"target_field" json:"targetField,required"`
+	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,optional"`
+	EndpointName          types.String  `tfsdk:"endpoint_name" json:"endpointName,optional"`
+	IncludeScore          types.Bool    `tfsdk:"include_score" json:"includeScore,optional"`
+	IncludeSubcollections types.Bool    `tfsdk:"include_subcollections" json:"includeSubcollections,optional"`
+	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed_optional"`
+	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed_optional"`
+	Source                types.String  `tfsdk:"source" json:"source,computed_optional"`
+	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed_optional"`
+}
+
+type FunctionConfigEndpointsModel struct {
+	Method            types.String         `tfsdk:"method" json:"method,required"`
+	Name              types.String         `tfsdk:"name" json:"name,required"`
+	URL               types.String         `tfsdk:"url" json:"url,required"`
+	BodyTemplate      types.String         `tfsdk:"body_template" json:"bodyTemplate,optional"`
+	Headers           jsontypes.Normalized `tfsdk:"headers" json:"headers,optional"`
+	MatchInstructions types.String         `tfsdk:"match_instructions" json:"matchInstructions,optional"`
+	MatchTopK         types.Int64          `tfsdk:"match_top_k" json:"matchTopK,computed_optional"`
+	MaxCandidates     types.Int64          `tfsdk:"max_candidates" json:"maxCandidates,computed_optional"`
+	MaxPages          types.Int64          `tfsdk:"max_pages" json:"maxPages,computed_optional"`
+	NextPageParam     types.String         `tfsdk:"next_page_param" json:"nextPageParam,optional"`
+	NextPagePath      types.String         `tfsdk:"next_page_path" json:"nextPagePath,optional"`
+	QueryParam        types.String         `tfsdk:"query_param" json:"queryParam,optional"`
+	ResponsePath      types.String         `tfsdk:"response_path" json:"responsePath,optional"`
 }
 
 type FunctionFunctionModel struct {
@@ -228,18 +247,37 @@ type FunctionFunctionSemanticPageSplitConfigItemClassesModel struct {
 }
 
 type FunctionFunctionConfigModel struct {
-	Steps customfield.NestedObjectList[FunctionFunctionConfigStepsModel] `tfsdk:"steps" json:"steps,computed"`
+	Steps     customfield.NestedObjectList[FunctionFunctionConfigStepsModel]     `tfsdk:"steps" json:"steps,computed"`
+	Endpoints customfield.NestedObjectList[FunctionFunctionConfigEndpointsModel] `tfsdk:"endpoints" json:"endpoints,computed"`
 }
 
 type FunctionFunctionConfigStepsModel struct {
-	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,computed"`
 	SourceField           types.String  `tfsdk:"source_field" json:"sourceField,computed"`
 	TargetField           types.String  `tfsdk:"target_field" json:"targetField,computed"`
+	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,computed"`
+	EndpointName          types.String  `tfsdk:"endpoint_name" json:"endpointName,computed"`
 	IncludeScore          types.Bool    `tfsdk:"include_score" json:"includeScore,computed"`
 	IncludeSubcollections types.Bool    `tfsdk:"include_subcollections" json:"includeSubcollections,computed"`
 	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed"`
 	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed"`
+	Source                types.String  `tfsdk:"source" json:"source,computed"`
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
+}
+
+type FunctionFunctionConfigEndpointsModel struct {
+	Method            types.String         `tfsdk:"method" json:"method,computed"`
+	Name              types.String         `tfsdk:"name" json:"name,computed"`
+	URL               types.String         `tfsdk:"url" json:"url,computed"`
+	BodyTemplate      types.String         `tfsdk:"body_template" json:"bodyTemplate,computed"`
+	Headers           jsontypes.Normalized `tfsdk:"headers" json:"headers,computed"`
+	MatchInstructions types.String         `tfsdk:"match_instructions" json:"matchInstructions,computed"`
+	MatchTopK         types.Int64          `tfsdk:"match_top_k" json:"matchTopK,computed"`
+	MaxCandidates     types.Int64          `tfsdk:"max_candidates" json:"maxCandidates,computed"`
+	MaxPages          types.Int64          `tfsdk:"max_pages" json:"maxPages,computed"`
+	NextPageParam     types.String         `tfsdk:"next_page_param" json:"nextPageParam,computed"`
+	NextPagePath      types.String         `tfsdk:"next_page_path" json:"nextPagePath,computed"`
+	QueryParam        types.String         `tfsdk:"query_param" json:"queryParam,computed"`
+	ResponsePath      types.String         `tfsdk:"response_path" json:"responsePath,computed"`
 }
 
 type FunctionFunctionExtraConfigModel struct {

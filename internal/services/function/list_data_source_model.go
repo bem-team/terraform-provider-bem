@@ -199,18 +199,37 @@ type FunctionsSemanticPageSplitConfigItemClassesDataSourceModel struct {
 }
 
 type FunctionsConfigDataSourceModel struct {
-	Steps customfield.NestedObjectList[FunctionsConfigStepsDataSourceModel] `tfsdk:"steps" json:"steps,computed"`
+	Steps     customfield.NestedObjectList[FunctionsConfigStepsDataSourceModel]     `tfsdk:"steps" json:"steps,computed"`
+	Endpoints customfield.NestedObjectList[FunctionsConfigEndpointsDataSourceModel] `tfsdk:"endpoints" json:"endpoints,computed"`
 }
 
 type FunctionsConfigStepsDataSourceModel struct {
-	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,computed"`
 	SourceField           types.String  `tfsdk:"source_field" json:"sourceField,computed"`
 	TargetField           types.String  `tfsdk:"target_field" json:"targetField,computed"`
+	CollectionName        types.String  `tfsdk:"collection_name" json:"collectionName,computed"`
+	EndpointName          types.String  `tfsdk:"endpoint_name" json:"endpointName,computed"`
 	IncludeScore          types.Bool    `tfsdk:"include_score" json:"includeScore,computed"`
 	IncludeSubcollections types.Bool    `tfsdk:"include_subcollections" json:"includeSubcollections,computed"`
 	ScoreThreshold        types.Float64 `tfsdk:"score_threshold" json:"scoreThreshold,computed"`
 	SearchMode            types.String  `tfsdk:"search_mode" json:"searchMode,computed"`
+	Source                types.String  `tfsdk:"source" json:"source,computed"`
 	TopK                  types.Int64   `tfsdk:"top_k" json:"topK,computed"`
+}
+
+type FunctionsConfigEndpointsDataSourceModel struct {
+	Method            types.String         `tfsdk:"method" json:"method,computed"`
+	Name              types.String         `tfsdk:"name" json:"name,computed"`
+	URL               types.String         `tfsdk:"url" json:"url,computed"`
+	BodyTemplate      types.String         `tfsdk:"body_template" json:"bodyTemplate,computed"`
+	Headers           jsontypes.Normalized `tfsdk:"headers" json:"headers,computed"`
+	MatchInstructions types.String         `tfsdk:"match_instructions" json:"matchInstructions,computed"`
+	MatchTopK         types.Int64          `tfsdk:"match_top_k" json:"matchTopK,computed"`
+	MaxCandidates     types.Int64          `tfsdk:"max_candidates" json:"maxCandidates,computed"`
+	MaxPages          types.Int64          `tfsdk:"max_pages" json:"maxPages,computed"`
+	NextPageParam     types.String         `tfsdk:"next_page_param" json:"nextPageParam,computed"`
+	NextPagePath      types.String         `tfsdk:"next_page_path" json:"nextPagePath,computed"`
+	QueryParam        types.String         `tfsdk:"query_param" json:"queryParam,computed"`
+	ResponsePath      types.String         `tfsdk:"response_path" json:"responsePath,computed"`
 }
 
 type FunctionsExtraConfigDataSourceModel struct {
