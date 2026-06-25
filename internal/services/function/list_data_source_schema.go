@@ -589,6 +589,10 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							Computed:    true,
 							CustomType:  customfield.NewNestedObjectType[FunctionsParseConfigDataSourceModel](ctx),
 							Attributes: map[string]schema.Attribute{
+								"default_bucket": schema.StringAttribute{
+									Description: "Optional bucket NAME that parse-extracted entities land in when no\ncall-level bucket is supplied. Lower precedence than a call-level bucket,\nhigher than the account+environment default.",
+									Computed:    true,
+								},
 								"extract_entities": schema.BoolAttribute{
 									Description: "When true, extract named entities (people, organizations, products,\nstudies, identifiers, etc.) and the relationships between them, and\ndedupe by canonical name within the document. When false, only\n`sections[]` is extracted; `entities[]` and `relationships[]` come\nback empty in the parse output. Defaults to true.",
 									Computed:    true,

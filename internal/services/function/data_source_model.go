@@ -227,6 +227,7 @@ type FunctionFunctionExtraConfigDataSourceModel struct {
 }
 
 type FunctionFunctionParseConfigDataSourceModel struct {
+	DefaultBucket       types.String         `tfsdk:"default_bucket" json:"defaultBucket,computed"`
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
