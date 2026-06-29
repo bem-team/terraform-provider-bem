@@ -36,6 +36,7 @@ type FunctionModel struct {
 	ExtraConfig             *FunctionExtraConfigModel                       `tfsdk:"extra_config" json:"extraConfig,optional,no_refresh"`
 	ParseConfig             *FunctionParseConfigModel                       `tfsdk:"parse_config" json:"parseConfig,optional,no_refresh"`
 	PrintPageSplitConfig    *FunctionPrintPageSplitConfigModel              `tfsdk:"print_page_split_config" json:"printPageSplitConfig,optional,no_refresh"`
+	RenderConfig            *FunctionRenderConfigModel                      `tfsdk:"render_config" json:"renderConfig,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
 	OutputSchema            jsontypes.Normalized                            `tfsdk:"output_schema" json:"outputSchema,optional,no_refresh"`
 	Config                  customfield.NestedObject[FunctionConfigModel]   `tfsdk:"config" json:"config,computed_optional,no_refresh"`
@@ -90,6 +91,15 @@ type FunctionParseConfigModel struct {
 type FunctionPrintPageSplitConfigModel struct {
 	NextFunctionID   types.String `tfsdk:"next_function_id" json:"nextFunctionID,optional"`
 	NextFunctionName types.String `tfsdk:"next_function_name" json:"nextFunctionName,optional"`
+}
+
+type FunctionRenderConfigModel struct {
+	Template *FunctionRenderConfigTemplateModel `tfsdk:"template" json:"template,required"`
+}
+
+type FunctionRenderConfigTemplateModel struct {
+	Base64 types.String `tfsdk:"base64" json:"base64,required"`
+	Name   types.String `tfsdk:"name" json:"name,optional"`
 }
 
 type FunctionSemanticPageSplitConfigModel struct {
@@ -168,6 +178,7 @@ type FunctionFunctionModel struct {
 	Config                  customfield.NestedObject[FunctionFunctionConfigModel]                  `tfsdk:"config" json:"config,computed"`
 	ExtraConfig             customfield.NestedObject[FunctionFunctionExtraConfigModel]             `tfsdk:"extra_config" json:"extraConfig,computed"`
 	ParseConfig             customfield.NestedObject[FunctionFunctionParseConfigModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
+	RenderConfig            customfield.NestedObject[FunctionFunctionRenderConfigModel]            `tfsdk:"render_config" json:"renderConfig,computed"`
 }
 
 type FunctionFunctionAuditModel struct {
@@ -290,4 +301,22 @@ type FunctionFunctionParseConfigModel struct {
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
+}
+
+type FunctionFunctionRenderConfigModel struct {
+	Template customfield.NestedObject[FunctionFunctionRenderConfigTemplateModel] `tfsdk:"template" json:"template,computed"`
+}
+
+type FunctionFunctionRenderConfigTemplateModel struct {
+	DownloadURL   types.String                                                                    `tfsdk:"download_url" json:"downloadURL,computed"`
+	ListKinds     customfield.List[types.String]                                                  `tfsdk:"list_kinds" json:"listKinds,computed"`
+	Name          types.String                                                                    `tfsdk:"name" json:"name,computed"`
+	Placeholders  customfield.NestedObject[FunctionFunctionRenderConfigTemplatePlaceholdersModel] `tfsdk:"placeholders" json:"placeholders,computed"`
+	StyleIDs      customfield.List[types.String]                                                  `tfsdk:"style_ids" json:"styleIds,computed"`
+	TableStyleIDs customfield.List[types.String]                                                  `tfsdk:"table_style_ids" json:"tableStyleIds,computed"`
+}
+
+type FunctionFunctionRenderConfigTemplatePlaceholdersModel struct {
+	BlockKeys  customfield.List[types.String] `tfsdk:"block_keys" json:"blockKeys,computed"`
+	StringKeys customfield.List[types.String] `tfsdk:"string_keys" json:"stringKeys,computed"`
 }
