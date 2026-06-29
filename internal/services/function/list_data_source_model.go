@@ -119,6 +119,7 @@ type FunctionsItemsDataSourceModel struct {
 	Config                  customfield.NestedObject[FunctionsConfigDataSourceModel]                  `tfsdk:"config" json:"config,computed"`
 	ExtraConfig             customfield.NestedObject[FunctionsExtraConfigDataSourceModel]             `tfsdk:"extra_config" json:"extraConfig,computed"`
 	ParseConfig             customfield.NestedObject[FunctionsParseConfigDataSourceModel]             `tfsdk:"parse_config" json:"parseConfig,computed"`
+	RenderConfig            customfield.NestedObject[FunctionsRenderConfigDataSourceModel]            `tfsdk:"render_config" json:"renderConfig,computed"`
 }
 
 type FunctionsAuditDataSourceModel struct {
@@ -241,4 +242,22 @@ type FunctionsParseConfigDataSourceModel struct {
 	ExtractEntities     types.Bool           `tfsdk:"extract_entities" json:"extractEntities,computed"`
 	LinkAcrossDocuments types.Bool           `tfsdk:"link_across_documents" json:"linkAcrossDocuments,computed"`
 	Schema              jsontypes.Normalized `tfsdk:"schema" json:"schema,computed"`
+}
+
+type FunctionsRenderConfigDataSourceModel struct {
+	Template customfield.NestedObject[FunctionsRenderConfigTemplateDataSourceModel] `tfsdk:"template" json:"template,computed"`
+}
+
+type FunctionsRenderConfigTemplateDataSourceModel struct {
+	DownloadURL   types.String                                                                       `tfsdk:"download_url" json:"downloadURL,computed"`
+	ListKinds     customfield.List[types.String]                                                     `tfsdk:"list_kinds" json:"listKinds,computed"`
+	Name          types.String                                                                       `tfsdk:"name" json:"name,computed"`
+	Placeholders  customfield.NestedObject[FunctionsRenderConfigTemplatePlaceholdersDataSourceModel] `tfsdk:"placeholders" json:"placeholders,computed"`
+	StyleIDs      customfield.List[types.String]                                                     `tfsdk:"style_ids" json:"styleIds,computed"`
+	TableStyleIDs customfield.List[types.String]                                                     `tfsdk:"table_style_ids" json:"tableStyleIds,computed"`
+}
+
+type FunctionsRenderConfigTemplatePlaceholdersDataSourceModel struct {
+	BlockKeys  customfield.List[types.String] `tfsdk:"block_keys" json:"blockKeys,computed"`
+	StringKeys customfield.List[types.String] `tfsdk:"string_keys" json:"stringKeys,computed"`
 }

@@ -54,6 +54,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							"payload_shaping",
 							"enrich",
 							"parse",
+							"render",
 						),
 					),
 				},
@@ -114,7 +115,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							Computed:    true,
 						},
 						"type": schema.StringAttribute{
-							Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".`,
+							Description: `Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse", "render".`,
 							Computed:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOfCaseInsensitive(
@@ -128,6 +129,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 									"payload_shaping",
 									"enrich",
 									"parse",
+									"render",
 								),
 							},
 						},
@@ -605,6 +607,68 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 									Description: "Optional JSONSchema. When provided, each chunk performs schema-guided\nextraction. When absent, chunks perform open-ended discovery and\nreturn sections, entities, and relationships per the discovery\nschema.",
 									Computed:    true,
 									CustomType:  jsontypes.NormalizedType{},
+								},
+							},
+						},
+						"render_config": schema.SingleNestedAttribute{
+							Description: "Per-version configuration for a Render function.\n\nRender emits a `.docx` from schema-typed JSON by composing the JSON into a\n`.docx` template. The template document is stored server-side; this response\nexposes only the contract derived from it. Schema validation runs internally\nin the ML service against the bundled core schema; no customer-supplied\nschema rides this surface.",
+							Computed:    true,
+							CustomType:  customfield.NewNestedObjectType[FunctionsRenderConfigDataSourceModel](ctx),
+							Attributes: map[string]schema.Attribute{
+								"template": schema.SingleNestedAttribute{
+									Description: "The uploaded template: its filename, a short-lived presigned download URL,\nand the placeholder/style contract derived from it. Absent on configs\ncreated before template capture existed.",
+									Computed:    true,
+									CustomType:  customfield.NewNestedObjectType[FunctionsRenderConfigTemplateDataSourceModel](ctx),
+									Attributes: map[string]schema.Attribute{
+										"download_url": schema.StringAttribute{
+											Description: "Short-lived presigned URL to download the stored `.docx`. The private\nstorage location is never exposed.",
+											Computed:    true,
+										},
+										"list_kinds": schema.ListAttribute{
+											Description: "Supported list kinds (`decimal`, `bullet`) the template's `numbering.xml`\ndefines an `abstractNum` for. Empty means the template can hold no list, so\nany list primitive will fail at render.",
+											Computed:    true,
+											Validators: []validator.List{
+												listvalidator.ValueStringsAre(
+													stringvalidator.OneOfCaseInsensitive("decimal", "bullet"),
+												),
+											},
+											CustomType:  customfield.NewListType[types.String](ctx),
+											ElementType: types.StringType,
+										},
+										"name": schema.StringAttribute{
+											Description: "Original filename of the uploaded template (e.g. `contract.docx`), echoed\nback for display. Absent on templates uploaded before the filename was\ncaptured.",
+											Computed:    true,
+										},
+										"placeholders": schema.SingleNestedAttribute{
+											Description: "The placeholder contract a Render template declares, grouped by how each\nplaceholder is filled. Derived from the template at create/update time by\nscanning its `docxtpl` tags; not user-supplied.\n\n- `stringKeys`: bare string placeholders (`{{ key }}`) filled with a single\nvalue.\n- `blockKeys`: wrapped-primitive placeholders (`{{p key }}`) — bind one core\nprimitive (paragraph, table, image, or list). The placeholder's own\nparagraph dissolves and is replaced by the rendered subdocument's blocks,\nrather than substituting text inline.",
+											Computed:    true,
+											CustomType:  customfield.NewNestedObjectType[FunctionsRenderConfigTemplatePlaceholdersDataSourceModel](ctx),
+											Attributes: map[string]schema.Attribute{
+												"block_keys": schema.ListAttribute{
+													Computed:    true,
+													CustomType:  customfield.NewListType[types.String](ctx),
+													ElementType: types.StringType,
+												},
+												"string_keys": schema.ListAttribute{
+													Computed:    true,
+													CustomType:  customfield.NewListType[types.String](ctx),
+													ElementType: types.StringType,
+												},
+											},
+										},
+										"style_ids": schema.ListAttribute{
+											Description: "Paragraph/character style IDs the uploaded template defines and the\nrendered output can reference. Derived from the template's `styles.xml` at\ncreate/update time.",
+											Computed:    true,
+											CustomType:  customfield.NewListType[types.String](ctx),
+											ElementType: types.StringType,
+										},
+										"table_style_ids": schema.ListAttribute{
+											Description: "Style IDs whose type is table — the styles a `table` primitive's required\n`styleId` can name. Empty means the template defines no table style, so any\ntable primitive will fail at render.",
+											Computed:    true,
+											CustomType:  customfield.NewListType[types.String](ctx),
+											ElementType: types.StringType,
+										},
+									},
 								},
 							},
 						},
