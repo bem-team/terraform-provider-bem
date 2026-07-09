@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0 (2026-07-09)
+
+Full Changelog: [v0.8.0...v0.9.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.8.0...v0.9.0)
+
+### Features
+
+* **api:** api update ([6370749](https://github.com/bem-team/terraform-provider-bem/commit/6370749a8c77588aaeaf421492300a079935dd4b))
+* **api:** api update ([644eb2f](https://github.com/bem-team/terraform-provider-bem/commit/644eb2fb39ccad152b4020af588e78503948921d))
+
+
+### Bug Fixes
+
+* **terraform:** fix nil pointer dereference when comparing null or unknown numbers ([367f1d2](https://github.com/bem-team/terraform-provider-bem/commit/367f1d27ed690a1f51c8ac6a3e42c26425d188a8))
+
 ## 0.8.0 (2026-06-18)
 
 Full Changelog: [v0.7.0...v0.8.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.7.0...v0.8.0)
