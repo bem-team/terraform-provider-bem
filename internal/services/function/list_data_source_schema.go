@@ -490,7 +490,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 												},
 											},
 											"top_k": schema.Int64Attribute{
-												Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list) and automatically sorted by cosine distance\n(best match = lowest distance first).\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`",
+												Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list) and automatically sorted by cosine distance\n(best match = lowest distance first).\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`\n\nWhen re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the\nnumber of results returned — re-ranking changes their order, not the count. The\ncandidate pool the LLM chooses from is widened internally to at least 5, so even\n`topK: 1` re-ranks a real pool and returns the single best match.",
 												Computed:    true,
 												Validators: []validator.Int64{
 													int64validator.Between(1, 100),
@@ -530,7 +530,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 												CustomType:  jsontypes.NormalizedType{},
 											},
 											"match_instructions": schema.StringAttribute{
-												Description: "Natural-language instructions for LLM agent reasoning.\n\nWhen set, the candidates fetched from the endpoint are passed to an LLM with these\ninstructions, which selects the best match(es) and returns them with confidence scores.\nEach injected result has the shape `{ data, confidence, reasoning? }`.\n\nWhen omitted, the raw fetched value is injected without any LLM involvement.",
+												Description: "Natural-language instructions for LLM agent reasoning.\n\nWhen set, the candidates fetched from the endpoint are passed to an LLM with these\ninstructions, which selects the best match(es) and returns them ranked best-first.\nEach injected result has the shape `{ data, rank, confidence, reasoning? }` (rank is\n1-based, 1 = best).\n\nWhen omitted, the raw fetched value is injected without any LLM involvement.",
 												Computed:    true,
 											},
 											"match_top_k": schema.Int64Attribute{
