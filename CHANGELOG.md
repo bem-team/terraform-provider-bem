@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 (2026-07-20)
+
+Full Changelog: [v0.9.0...v0.10.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.9.0...v0.10.0)
+
+### Features
+
+* **api:** api update ([d7d3bd6](https://github.com/bem-team/terraform-provider-bem/commit/d7d3bd65f301c57820b7a951a3facdd27a23eaf4))
+* **api:** api update ([4a2f023](https://github.com/bem-team/terraform-provider-bem/commit/4a2f0234832fea04e9733c81b5365e5975c134c0))
+* **stlc:** configurable CI runner and private-production-repo support in workflow templates ([800d687](https://github.com/bem-team/terraform-provider-bem/commit/800d687b08f24911c86c797ba6d4998b6c7da207))
+
 ## 0.9.0 (2026-07-09)
 
 Full Changelog: [v0.8.0...v0.9.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.8.0...v0.9.0)
