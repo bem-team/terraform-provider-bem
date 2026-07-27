@@ -288,6 +288,10 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
 						Computed:    true,
 					},
+					"native_visual_input": schema.BoolAttribute{
+						Description: "When true, image and PDF inputs are sent directly to the model for\nrouting instead of being OCR'd to text first. Defaults to true for new\nclassify functions and false for the legacy route type.",
+						Computed:    true,
+					},
 					"destination_type": schema.StringAttribute{
 						Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
 						Computed:    true,

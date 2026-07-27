@@ -105,6 +105,7 @@ type FunctionsItemsDataSourceModel struct {
 	PreCount                types.Bool                                                                `tfsdk:"pre_count" json:"preCount,computed"`
 	Classifications         customfield.NestedObjectList[FunctionsClassificationsDataSourceModel]     `tfsdk:"classifications" json:"classifications,computed"`
 	Description             types.String                                                              `tfsdk:"description" json:"description,computed"`
+	NativeVisualInput       types.Bool                                                                `tfsdk:"native_visual_input" json:"nativeVisualInput,computed"`
 	DestinationType         types.String                                                              `tfsdk:"destination_type" json:"destinationType,computed"`
 	GoogleDriveFolderID     types.String                                                              `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,computed"`
 	S3Bucket                types.String                                                              `tfsdk:"s3_bucket" json:"s3Bucket,computed"`
