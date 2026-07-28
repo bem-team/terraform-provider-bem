@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 (2026-07-28)
+
+Full Changelog: [v0.10.0...v0.11.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.10.0...v0.11.0)
+
+### Features
+
+* **api:** api update ([05ae95f](https://github.com/bem-team/terraform-provider-bem/commit/05ae95febb4361986e19e447515afe73cd61508b))
+* **api:** api update ([b833236](https://github.com/bem-team/terraform-provider-bem/commit/b83323649871c493801e6b99cad8d7934f89b2b7))
+
 ## 0.10.0 (2026-07-20)
 
 Full Changelog: [v0.9.0...v0.10.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.9.0...v0.10.0)
