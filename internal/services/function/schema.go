@@ -92,6 +92,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 					stringvalidator.OneOfCaseInsensitive("standard"),
 				},
 			},
+			"native_visual_input": schema.BoolAttribute{
+				Description: "When true, image and PDF inputs are sent directly to the model for\nrouting instead of being OCR'd to text first. Defaults to true for new\nclassify functions and false for the legacy route type.",
+				Optional:    true,
+			},
 			"output_schema_name": schema.StringAttribute{
 				Description: "Name of output schema object.",
 				Optional:    true,
@@ -304,7 +308,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Optional:    true,
 								},
 								"include_score": schema.BoolAttribute{
-									Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosine_distance` field (semantic mode)\nor a `hybrid_score` field (hybrid mode).",
+									Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `score` field with `scoreType` identifying\nthe metric (`\"cosineDistance\"` for semantic mode, `\"hybridScore\"` for hybrid mode).",
 									Optional:    true,
 								},
 								"include_subcollections": schema.BoolAttribute{
@@ -694,6 +698,10 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
 						Computed:    true,
 					},
+					"native_visual_input": schema.BoolAttribute{
+						Description: "When true, image and PDF inputs are sent directly to the model for\nrouting instead of being OCR'd to text first. Defaults to true for new\nclassify functions and false for the legacy route type.",
+						Computed:    true,
+					},
 					"destination_type": schema.StringAttribute{
 						Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
 						Computed:    true,
@@ -810,7 +818,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Computed:    true,
 										},
 										"include_score": schema.BoolAttribute{
-											Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `cosine_distance` field (semantic mode)\nor a `hybrid_score` field (hybrid mode).",
+											Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `score` field with `scoreType` identifying\nthe metric (`\"cosineDistance\"` for semantic mode, `\"hybridScore\"` for hybrid mode).",
 											Computed:    true,
 										},
 										"include_subcollections": schema.BoolAttribute{

@@ -22,6 +22,7 @@ type FunctionModel struct {
 	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional,no_refresh"`
 	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
+	NativeVisualInput       types.Bool                                      `tfsdk:"native_visual_input" json:"nativeVisualInput,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
 	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,optional,no_refresh"`
 	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh"`
@@ -164,6 +165,7 @@ type FunctionFunctionModel struct {
 	PreCount                types.Bool                                                             `tfsdk:"pre_count" json:"preCount,computed"`
 	Classifications         customfield.NestedObjectList[FunctionFunctionClassificationsModel]     `tfsdk:"classifications" json:"classifications,computed"`
 	Description             types.String                                                           `tfsdk:"description" json:"description,computed"`
+	NativeVisualInput       types.Bool                                                             `tfsdk:"native_visual_input" json:"nativeVisualInput,computed"`
 	DestinationType         types.String                                                           `tfsdk:"destination_type" json:"destinationType,computed"`
 	GoogleDriveFolderID     types.String                                                           `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,computed"`
 	S3Bucket                types.String                                                           `tfsdk:"s3_bucket" json:"s3Bucket,computed"`
