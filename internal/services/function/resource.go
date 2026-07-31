@@ -118,7 +118,7 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 	res := new(http.Response)
 	_, err = r.client.Functions.Update(
 		ctx,
-		data.PathFunctionName.ValueString(),
+		state.FunctionName.ValueString(),
 		params,
 		option.WithRequestBody("application/json", dataBytes),
 		option.WithResponseBodyInto(&res),
@@ -230,6 +230,7 @@ func (r *FunctionResource) ImportState(ctx context.Context, req resource.ImportS
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	data.ID = data.FunctionName
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
