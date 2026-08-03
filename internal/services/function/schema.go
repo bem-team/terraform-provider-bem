@@ -304,7 +304,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Optional:    true,
 								},
 								"include_score": schema.BoolAttribute{
-									Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `score` field with `scoreType` identifying\nthe metric (`\"cosineDistance\"` for semantic mode, `\"hybridScore\"` for hybrid mode).",
+									Description: "Whether to include retrieval scores in results.\n\nWhen enabled, each result includes a `score` field and a `scoreType` identifying the\nmetric:\n- `\"cosineDistance\"` (semantic): 0.0 (perfect match) to 2.0 (completely dissimilar) — lower is better.\n- `\"hybridScore\"` (hybrid): an RRF score mapped onto cosine distance's 0–2 scale — lower is better (0.0 = top of both rankings).",
 									Optional:    true,
 								},
 								"include_subcollections": schema.BoolAttribute{
@@ -312,7 +312,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Optional:    true,
 								},
 								"score_threshold": schema.Float64Attribute{
-									Description: "Maximum cosine distance threshold for filtering results (default: 0.6).\nResults with cosine distance above this threshold are excluded.\n\n**Only applies to `semantic` and `hybrid` search modes.**\nExact search does not use cosine distance and ignores this setting.\n\nCosine distance ranges from 0.0 (identical) to 2.0 (opposite):\n- 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)\n- 0.3 - 0.6: Reasonably similar (moderate threshold)\n- 0.6 - 1.0: Loosely related (lenient threshold)\n- > 1.0: Rarely useful — allows nearly unrelated results\n\nFor most semantic search use cases, good matches typically fall in the 0.2 - 0.5 range.",
+									Description: "Maximum cosine distance threshold for filtering results (default: 0.6).\nResults with cosine distance above this threshold are excluded.\n\n**Applies to `semantic` and `hybrid` search modes.** For `hybrid`, the Reciprocal Rank\nFusion score is mapped onto the same 0–2 dissimilarity scale as cosine distance, so a\nsingle threshold works for both. `exact` uses keyword matching and ignores this setting.\nNote the default `0.6` is calibrated for cosine distance and is relatively strict for\nhybrid.\n\nCosine distance ranges from 0.0 (identical) to 2.0 (opposite):\n- 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)\n- 0.3 - 0.6: Reasonably similar (moderate threshold)\n- 0.6 - 1.0: Loosely related (lenient threshold)\n- > 1.0: Rarely useful — allows nearly unrelated results\n\nFor most semantic search use cases, good matches typically fall in the 0.2 - 0.5 range.",
 									Computed:    true,
 									Optional:    true,
 									Validators: []validator.Float64{
@@ -321,7 +321,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Default: float64default.StaticFloat64(0.6),
 								},
 								"search_mode": schema.StringAttribute{
-									Description: "Search mode to use for enrichment (default: \"semantic\").\n\n**semantic**: Vector similarity search using dense embeddings. Best for finding conceptually similar items.\n- Use for: Product descriptions, natural language content\n- Example: \"red sports car\" matches \"crimson convertible automobile\"\n\n**exact**: Exact keyword matching using PostgreSQL text search. Best for exact identifiers.\n- Use for: SKU numbers, routing numbers, account IDs, exact tags\n- Example: \"SKU-12345\" only matches items containing that exact text\n\n**hybrid**: Combined search using 20% semantic + 80% sparse embeddings (keyword-based).\n- Use for: Tags, categories, partial identifiers\n- Example: Balances semantic meaning with exact keyword matching\nAvailable values: \"semantic\", \"exact\", \"hybrid\".",
+									Description: "Search mode to use for enrichment (default: \"semantic\").\n\n**semantic**: Vector similarity search using dense embeddings. Best for finding conceptually similar items.\n- Use for: Product descriptions, natural language content\n- Example: \"red sports car\" matches \"crimson convertible automobile\"\n\n**exact**: Exact keyword matching using PostgreSQL text search. Best for exact identifiers.\n- Use for: SKU numbers, routing numbers, account IDs, exact tags\n- Example: \"SKU-12345\" only matches items containing that exact text\n\n**hybrid**: Fuses the dense (semantic) and sparse (keyword) rankings with weighted\nReciprocal Rank Fusion (k=60, 0.5 dense / 0.5 sparse). Because RRF combines rank\npositions rather than raw scores, semantic meaning and exact-token overlap contribute\non the same scale.\n- Use for: Tags, categories, partial identifiers\n- Example: Balances semantic meaning with exact keyword matching\nAvailable values: \"semantic\", \"exact\", \"hybrid\".",
 									Computed:    true,
 									Optional:    true,
 									Validators: []validator.String{
@@ -343,7 +343,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Default: stringdefault.StaticString("collection"),
 								},
 								"top_k": schema.Int64Attribute{
-									Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list) and automatically sorted by cosine distance\n(best match = lowest distance first).\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`\n\nWhen re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the\nnumber of results returned — re-ranking changes their order, not the count. The\ncandidate pool the LLM chooses from is widened internally to at least 5, so even\n`topK: 1` re-ranks a real pool and returns the single best match.",
+									Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list), sorted best match first (by cosine\ndistance for `semantic`/`exact`, or by fused relevance score for `hybrid`). Duplicate\nitems are collapsed, so results are distinct: you get `topK` distinct matches unless the\ncollection contains fewer.\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`\n\nWhen re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the\nnumber of results returned — re-ranking changes their order, not the count. The\ncandidate pool the LLM chooses from is widened internally to at least 5, so even\n`topK: 1` re-ranks a real pool and returns the single best match.",
 									Computed:    true,
 									Optional:    true,
 									Validators: []validator.Int64{
@@ -814,7 +814,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Computed:    true,
 										},
 										"include_score": schema.BoolAttribute{
-											Description: "Whether to include cosine distance scores in results.\nCosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).\nLower scores indicate better semantic similarity.\n\nWhen enabled, each result includes a `score` field with `scoreType` identifying\nthe metric (`\"cosineDistance\"` for semantic mode, `\"hybridScore\"` for hybrid mode).",
+											Description: "Whether to include retrieval scores in results.\n\nWhen enabled, each result includes a `score` field and a `scoreType` identifying the\nmetric:\n- `\"cosineDistance\"` (semantic): 0.0 (perfect match) to 2.0 (completely dissimilar) — lower is better.\n- `\"hybridScore\"` (hybrid): an RRF score mapped onto cosine distance's 0–2 scale — lower is better (0.0 = top of both rankings).",
 											Computed:    true,
 										},
 										"include_subcollections": schema.BoolAttribute{
@@ -822,7 +822,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Computed:    true,
 										},
 										"score_threshold": schema.Float64Attribute{
-											Description: "Maximum cosine distance threshold for filtering results (default: 0.6).\nResults with cosine distance above this threshold are excluded.\n\n**Only applies to `semantic` and `hybrid` search modes.**\nExact search does not use cosine distance and ignores this setting.\n\nCosine distance ranges from 0.0 (identical) to 2.0 (opposite):\n- 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)\n- 0.3 - 0.6: Reasonably similar (moderate threshold)\n- 0.6 - 1.0: Loosely related (lenient threshold)\n- > 1.0: Rarely useful — allows nearly unrelated results\n\nFor most semantic search use cases, good matches typically fall in the 0.2 - 0.5 range.",
+											Description: "Maximum cosine distance threshold for filtering results (default: 0.6).\nResults with cosine distance above this threshold are excluded.\n\n**Applies to `semantic` and `hybrid` search modes.** For `hybrid`, the Reciprocal Rank\nFusion score is mapped onto the same 0–2 dissimilarity scale as cosine distance, so a\nsingle threshold works for both. `exact` uses keyword matching and ignores this setting.\nNote the default `0.6` is calibrated for cosine distance and is relatively strict for\nhybrid.\n\nCosine distance ranges from 0.0 (identical) to 2.0 (opposite):\n- 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)\n- 0.3 - 0.6: Reasonably similar (moderate threshold)\n- 0.6 - 1.0: Loosely related (lenient threshold)\n- > 1.0: Rarely useful — allows nearly unrelated results\n\nFor most semantic search use cases, good matches typically fall in the 0.2 - 0.5 range.",
 											Computed:    true,
 											Validators: []validator.Float64{
 												float64validator.Between(0, 2),
@@ -830,7 +830,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Default: float64default.StaticFloat64(0.6),
 										},
 										"search_mode": schema.StringAttribute{
-											Description: "Search mode to use for enrichment (default: \"semantic\").\n\n**semantic**: Vector similarity search using dense embeddings. Best for finding conceptually similar items.\n- Use for: Product descriptions, natural language content\n- Example: \"red sports car\" matches \"crimson convertible automobile\"\n\n**exact**: Exact keyword matching using PostgreSQL text search. Best for exact identifiers.\n- Use for: SKU numbers, routing numbers, account IDs, exact tags\n- Example: \"SKU-12345\" only matches items containing that exact text\n\n**hybrid**: Combined search using 20% semantic + 80% sparse embeddings (keyword-based).\n- Use for: Tags, categories, partial identifiers\n- Example: Balances semantic meaning with exact keyword matching\nAvailable values: \"semantic\", \"exact\", \"hybrid\".",
+											Description: "Search mode to use for enrichment (default: \"semantic\").\n\n**semantic**: Vector similarity search using dense embeddings. Best for finding conceptually similar items.\n- Use for: Product descriptions, natural language content\n- Example: \"red sports car\" matches \"crimson convertible automobile\"\n\n**exact**: Exact keyword matching using PostgreSQL text search. Best for exact identifiers.\n- Use for: SKU numbers, routing numbers, account IDs, exact tags\n- Example: \"SKU-12345\" only matches items containing that exact text\n\n**hybrid**: Fuses the dense (semantic) and sparse (keyword) rankings with weighted\nReciprocal Rank Fusion (k=60, 0.5 dense / 0.5 sparse). Because RRF combines rank\npositions rather than raw scores, semantic meaning and exact-token overlap contribute\non the same scale.\n- Use for: Tags, categories, partial identifiers\n- Example: Balances semantic meaning with exact keyword matching\nAvailable values: \"semantic\", \"exact\", \"hybrid\".",
 											Computed:    true,
 											Validators: []validator.String{
 												stringvalidator.OneOfCaseInsensitive(
@@ -850,7 +850,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Default: stringdefault.StaticString("collection"),
 										},
 										"top_k": schema.Int64Attribute{
-											Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list) and automatically sorted by cosine distance\n(best match = lowest distance first).\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`\n\nWhen re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the\nnumber of results returned — re-ranking changes their order, not the count. The\ncandidate pool the LLM chooses from is widened internally to at least 5, so even\n`topK: 1` re-ranks a real pool and returns the single best match.",
+											Description: "Number of top matching results to return per query (default: 1).\nResults are always returned as an array (list), sorted best match first (by cosine\ndistance for `semantic`/`exact`, or by fused relevance score for `hybrid`). Duplicate\nitems are collapsed, so results are distinct: you get `topK` distinct matches unless the\ncollection contains fewer.\n\n- 1: Returns array with single best match: `[{...}]`\n- >1: Returns array with multiple matches: `[{...}, {...}, ...]`\n\nWhen re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the\nnumber of results returned — re-ranking changes their order, not the count. The\ncandidate pool the LLM chooses from is widened internally to at least 5, so even\n`topK: 1` re-ranks a real pool and returns the single best match.",
 											Computed:    true,
 											Validators: []validator.Int64{
 												int64validator.Between(1, 100),
