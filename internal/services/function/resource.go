@@ -13,6 +13,7 @@ import (
 	"github.com/bem-team/terraform-provider-bem/internal/apijson"
 	"github.com/bem-team/terraform-provider-bem/internal/importpath"
 	"github.com/bem-team/terraform-provider-bem/internal/logging"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -235,6 +236,29 @@ func (r *FunctionResource) ImportState(ctx context.Context, req resource.ImportS
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *FunctionResource) ModifyPlan(_ context.Context, _ resource.ModifyPlanRequest, _ *resource.ModifyPlanResponse) {
+func (r *FunctionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Destroy plan: nothing to modify.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	// Create plan: id is already unknown, nothing to do.
+	if req.State.Raw.IsNull() {
+		return
+	}
 
+	var plan, state FunctionModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// id always mirrors function_name (see Create/Update/Read/ImportState).
+	// The id attribute's UseNonNullStateForUnknown plan modifier otherwise
+	// keeps it pinned to the prior value even when function_name is renamed
+	// in place, which Terraform's plan/apply consistency check then rejects
+	// once Update() actually returns the new id.
+	if !plan.FunctionName.Equal(state.FunctionName) {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), types.StringUnknown())...)
+	}
 }

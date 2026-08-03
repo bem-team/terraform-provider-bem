@@ -222,6 +222,12 @@ func (e *encoder) newTypeEncoder(t reflect.Type) encoderFunc {
 	switch t.Kind() {
 	case reflect.Pointer:
 		inner := t.Elem()
+		// Both variants are the same across every invocation of the closure below,
+		// so build them once here rather than re-deriving (and, for the
+		// zero-state case, re-allocating a child *encoder via withPatch) on every
+		// call.
+		normalEncoder := child.typeEncoder(inner)
+		noPatchEncoder := child.withPatch(false).typeEncoder(inner)
 
 		return func(p reflect.Value, s reflect.Value) ([]byte, error) {
 			// if we end up accessing missing fields/properties, we might end up with an invalid
@@ -244,17 +250,16 @@ func (e *encoder) newTypeEncoder(t reflect.Type) encoderFunc {
 
 			// If state is nil, then there is no value to unset. We still have to pass some value in for state, so
 			// we pass in the plan value so it marshals as-is.
-			enc := child
+			innerEncoder := normalEncoder
 			if s.IsNil() {
 				s = reflect.New(p.Type().Elem())
 
 				// If we're patching, then we force serializing the plan as a non-patch. Otherwise, if the plan is the
 				// zero value of the inner type, then it wouldn't be included (because we are setting a zero value
 				// state above) when it should be.
-				enc = child.withPatch(false)
+				innerEncoder = noPatchEncoder
 			}
 
-			innerEncoder := enc.typeEncoder(inner)
 			return innerEncoder(p.Elem(), s.Elem())
 		}
 	case reflect.Struct:
@@ -784,6 +789,11 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 	pairKeys := map[string]bool{}
 	pairs := []mapPair{}
 	keyEncoder := e.typeEncoder(plan.Type().Key())
+	// Both element encoders are the same for every key in this map, so build them
+	// once here rather than re-deriving (and, for the plan-only case,
+	// re-allocating a child *encoder via withPatch) on every iteration below.
+	elementEncoder := e.typeEncoder(plan.Type().Elem())
+	plainElementEncoder := e.withPatch(false).typeEncoder(plan.Type().Elem())
 
 	iter := plan.MapRange()
 	for iter.Next() {
@@ -832,14 +842,11 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 				// We are patching and this key's value didn't change so we can omit it.
 				continue
 			}
-			elementEncoder := e.typeEncoder(plan.Type().Elem())
 			encodedValue, err = elementEncoder(pair.plan, pair.state)
 		} else if pair.plan.IsValid() {
 			// This key exists in the plan, but it doesn't exist in the state. Just encode the full value associated
-			// with this key in the plan. Uses a child encoder rather than mutating e - see withPatch.
-			childEnc := e.withPatch(false)
-			elementEncoder := childEnc.typeEncoder(plan.Type().Elem())
-			encodedValue, err = elementEncoder(pair.plan, pair.plan)
+			// with this key in the plan.
+			encodedValue, err = plainElementEncoder(pair.plan, pair.plan)
 		} else {
 			// This key exists in the state, but not the plan, so we should delete it by sending null (see below).
 			encodedValue = nil
@@ -862,6 +869,9 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 
 func (e *encoder) newMapEncoder(_ reflect.Type) encoderFunc {
 	patch := e.patch
+	// Built once here rather than on every invocation of the Kind-mismatch
+	// branch below - see withPatch.
+	noPatchEnc := e.withPatch(false)
 	return func(plan reflect.Value, state reflect.Value) ([]byte, error) {
 		stateNil := !state.IsValid() || state.IsNil()
 		planNil := !plan.IsValid() || plan.IsNil()
@@ -872,8 +882,7 @@ func (e *encoder) newMapEncoder(_ reflect.Type) encoderFunc {
 		} else if patch && !stateNil && reflect.DeepEqual(plan.Interface(), state.Interface()) {
 			return nil, nil
 		} else if state.Kind() != plan.Kind() {
-			// Uses a child encoder rather than mutating e - see withPatch.
-			return e.withPatch(false).encodeMapEntries([]byte("{}"), plan, plan)
+			return noPatchEnc.encodeMapEntries([]byte("{}"), plan, plan)
 		}
 
 		return e.encodeMapEntries([]byte("{}"), plan, state)
