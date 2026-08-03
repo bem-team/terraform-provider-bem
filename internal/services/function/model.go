@@ -13,7 +13,6 @@ import (
 
 type FunctionModel struct {
 	ID                      types.String                                    `tfsdk:"id" json:"-,computed"`
-	PathFunctionName        types.String                                    `tfsdk:"path_function_name" path:"functionName,optional"`
 	FunctionName            types.String                                    `tfsdk:"function_name" json:"functionName,required,no_refresh"`
 	Type                    types.String                                    `tfsdk:"type" json:"type,required,no_refresh"`
 	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`

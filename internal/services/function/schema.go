@@ -33,10 +33,6 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 			},
-			"path_function_name": schema.StringAttribute{
-				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-			},
 			"function_name": schema.StringAttribute{
 				Description: "Name of function. Must be UNIQUE on a per-environment basis.",
 				Required:    true,

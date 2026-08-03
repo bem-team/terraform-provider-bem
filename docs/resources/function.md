@@ -14,7 +14,6 @@ description: |-
 
 ```terraform
 resource "bem_function" "example_function" {
-  path_function_name = "functionName"
   type = "extract"
   display_name = "displayName"
   enable_bounding_boxes = true
@@ -34,32 +33,37 @@ resource "bem_function" "example_function" {
 ### Required
 
 - `function_name` (String) Name of function. Must be UNIQUE on a per-environment basis.
-- `type` (String) Available values: "extract", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".
+- `type` (String) Available values: "extract", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse", "render".
 
 ### Optional
 
 - `classifications` (Attributes List) List of classifications a classify function can produce. Shares the underlying route list shape. (see [below for nested schema](#nestedatt--classifications))
-- `config` (Attributes) Configuration for enrich function with semantic search steps.
+- `config` (Attributes) Configuration for an enrich function.
 
 **How Enrich Functions Work:**
 
-Enrich functions use semantic search to augment JSON data with relevant information from collections.
-They take JSON input (typically from a transform function), extract specified fields, perform vector-based
-semantic search against collections, and inject the results back into the data.
+Enrich functions augment JSON input with data from external sources. They take JSON input
+(typically from a previous function), extract specified fields, fetch or search for matching
+data, and inject the results back into the JSON.
+
+**Data Sources:**
+- **Collections** (`source: "collection"`): Vector/keyword search against a BEM collection.
+Best for semantic matching against pre-indexed documents.
+- **Endpoints** (`source: "endpoint"`): HTTP call to any user-provided REST API.
+Best for looking up live data from CRMs, ERPs, or other external systems.
+Optionally uses LLM agent reasoning to rank candidates returned by the endpoint.
 
 **Input Requirements:**
-- Must receive JSON input (typically uploaded to S3 from a previous function)
-- Can be chained after transform or other functions that produce JSON output
+- Must receive JSON input (typically from a previous function's output)
 
 **Example Use Cases:**
-- Match product descriptions to SKU codes from a product catalog
-- Enrich customer data with account information
-- Link order line items to inventory records
+- Match product descriptions to SKU codes from a product catalog collection
+- Enrich customer data with account details from a CRM endpoint
+- Use LLM agent reasoning to fuzzy-match line item descriptions to catalog products
 
 **Configuration:**
-- Define one or more enrichment steps
-- Each step extracts values, searches a collection, and injects results
-- Steps are executed sequentially (see [below for nested schema](#nestedatt--config))
+- Define named endpoints (for endpoint-source steps)
+- Define one or more enrichment steps; steps are executed sequentially (see [below for nested schema](#nestedatt--config))
 - `description` (String) Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.
 - `destination_type` (String) Destination type for a Send function.
 Available values: "webhook", "s3", "google_drive".
@@ -69,9 +73,15 @@ Available values: "webhook", "s3", "google_drive".
 When true, the function returns the document regions (page, coordinates) from which each
 field was extracted. Enabling this automatically configures the function to use the bounding
 box model. Disabling resets to the default.
+- `extra_config` (Attributes) Cross-cutting toggles for Parse functions. Mirrors the `extraConfig`
+surface on Extract / Join — separated from `parseConfig` so the per-call
+Parse output shape stays distinct from operator-level execution flags. (see [below for nested schema](#nestedatt--extra_config))
 - `google_drive_folder_id` (String) Google Drive folder ID. Required when destinationType is google_drive. Managed via Paragon OAuth.
 - `join_type` (String) The type of join to perform.
 Available values: "standard".
+- `native_visual_input` (Boolean) When true, image and PDF inputs are sent directly to the model for
+routing instead of being OCR'd to text first. Defaults to true for new
+classify functions and false for the legacy route type.
 - `output_schema` (String) Desired output structure defined in standard JSON Schema convention.
 - `output_schema_name` (String) Name of output schema object.
 - `parse_config` (Attributes) Per-version configuration for a Parse function.
@@ -80,11 +90,15 @@ Parse renders document pages (PDF, image) via vision LLM and emits
 structured JSON. The two toggles below independently control entity
 extraction (a per-call output concern) and cross-document memory
 linking (an environment-wide concern). (see [below for nested schema](#nestedatt--parse_config))
-- `path_function_name` (String)
 - `pre_count` (Boolean) Reducing the risk of the model stopping early on long documents.
 Trade-off: Increases total latency. Compatible with
 `enableBoundingBoxes`.
 - `print_page_split_config` (Attributes) (see [below for nested schema](#nestedatt--print_page_split_config))
+- `render_config` (Attributes) Request-side render configuration. Carries the template document as
+base64-encoded `.docx` bytes: the server validates them, stores the template,
+and derives the placeholder/style-id contract at create/update time, so
+clients never submit `placeholders` or `styleIds`. The response shape
+(`RenderConfig`) returns the derived contract. (see [below for nested schema](#nestedatt--render_config))
 - `s3_bucket` (String) S3 bucket to upload the payload to. Required when destinationType is s3.
 - `s3_prefix` (String) Optional S3 key prefix (folder path).
 - `semantic_page_split_config` (Attributes) (see [below for nested schema](#nestedatt--semantic_page_split_config))
@@ -154,29 +168,38 @@ Optional:
 
 Required:
 
-- `steps` (Attributes List) Array of enrichment steps to execute sequentially (see [below for nested schema](#nestedatt--config--steps))
+- `steps` (Attributes List) Array of enrichment steps to execute sequentially. (see [below for nested schema](#nestedatt--config--steps))
+
+Optional:
+
+- `endpoints` (Attributes List) Named HTTP endpoints available to endpoint-source steps.
+Each endpoint must have a unique `name` referenced by the step's `endpointName`.
+Required when any step uses `source: "endpoint"`. (see [below for nested schema](#nestedatt--config--endpoints))
 
 <a id="nestedatt--config--steps"></a>
 ### Nested Schema for `config.steps`
 
 Required:
 
-- `collection_name` (String) Name of the collection to search against. The collection must exist and contain items.
-Supports hierarchical paths when used with `includeSubcollections`.
-- `source_field` (String) JMESPath expression to extract source data for semantic search.
-Can extract single values or arrays. All extracted values will be used for search.
+- `source_field` (String) JMESPath expression to extract source data.
+Can extract a single value or an array. Each extracted value is looked up independently.
 - `target_field` (String) Field path where enriched results should be placed.
 Use simple field names (e.g., "enriched_products").
 Results are always injected as an array (list), regardless of topK value.
 
 Optional:
 
+- `collection_name` (String) Name of the collection to search against.
+Required when `source` is `"collection"`. The collection must exist and contain items.
+Supports hierarchical paths when used with `includeSubcollections`.
+- `endpoint_name` (String) Name of an endpoint defined in `enrichConfig.endpoints`.
+Required when `source` is `"endpoint"`.
 - `include_score` (Boolean) Whether to include cosine distance scores in results.
 Cosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).
 Lower scores indicate better semantic similarity.
 
-When enabled, each result includes a `cosine_distance` field (semantic mode)
-or a `hybrid_score` field (hybrid mode).
+When enabled, each result includes a `score` field with `scoreType` identifying
+the metric (`"cosineDistance"` for semantic mode, `"hybridScore"` for hybrid mode).
 - `include_subcollections` (Boolean) When true, searches all collections under the hierarchical path.
 For example, "customers" will match "customers", "customers.premium", etc.
 - `score_threshold` (Number) Maximum cosine distance threshold for filtering results (default: 0.6).
@@ -206,6 +229,11 @@ For most semantic search use cases, good matches typically fall in the 0.2 - 0.5
 - Use for: Tags, categories, partial identifiers
 - Example: Balances semantic meaning with exact keyword matching
 Available values: "semantic", "exact", "hybrid".
+- `source` (String) Where to fetch enrichment data from (default: `"collection"`).
+
+- `"collection"`: Vector/keyword search against a BEM collection. Requires `collectionName`.
+- `"endpoint"`: HTTP call to a named endpoint defined in `enrichConfig.endpoints`. Requires `endpointName`.
+Available values: "collection", "endpoint".
 - `top_k` (Number) Number of top matching results to return per query (default: 1).
 Results are always returned as an array (list) and automatically sorted by cosine distance
 (best match = lowest distance first).
@@ -213,6 +241,105 @@ Results are always returned as an array (list) and automatically sorted by cosin
 - 1: Returns array with single best match: `[{...}]`
 - >1: Returns array with multiple matches: `[{...}, {...}, ...]`
 
+When re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the
+number of results returned — re-ranking changes their order, not the count. The
+candidate pool the LLM chooses from is widened internally to at least 5, so even
+`topK: 1` re-ranks a real pool and returns the single best match.
+
+
+<a id="nestedatt--config--endpoints"></a>
+### Nested Schema for `config.endpoints`
+
+Required:
+
+- `method` (String) HTTP method to use.
+Available values: "GET", "POST".
+- `name` (String) Unique name for this endpoint, referenced by enrichStep.endpointName.
+- `url` (String) Full URL of the endpoint (must be http:// or https://).
+
+Optional:
+
+- `body_template` (String) JSON body template for POST requests.
+**Required for POST endpoints.** Must contain the `{value}` placeholder, which is replaced
+with the extracted source value at runtime.
+
+Example: `bodyTemplate: "{\"query\": \"{value}\", \"limit\": 10}"`
+- `headers` (String) Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).
+- `match_instructions` (String) Natural-language instructions for LLM agent reasoning.
+
+When set, the candidates fetched from the endpoint are passed to an LLM with these
+instructions, which selects the best match(es) and returns them ranked best-first.
+Each injected result has the shape `{ data, rank, confidence, reasoning? }` (rank is
+1-based, 1 = best).
+
+When omitted, the raw fetched value is injected without any LLM involvement.
+- `match_top_k` (Number) Maximum number of ranked matches to return per source value when `matchInstructions`
+is set (default: 1). Ignored when `matchInstructions` is empty.
+- `max_candidates` (Number) LLM batch size during agent reasoning (default: 50). All candidates — across all
+fetched pages — are scored in batches of this size. Smaller values reduce per-call
+token usage; larger values mean fewer LLM calls. Ignored when `matchInstructions`
+is empty.
+- `max_pages` (Number) Maximum number of pages to fetch (default: 10). Acts as a safety cap against
+infinite pagination loops when the server never returns an empty cursor.
+- `next_page_param` (String) Query parameter name used to pass the cursor on subsequent GET requests, or the
+`{placeholder}` name used in the POST `bodyTemplate` (e.g. `"cursor"`,
+`"pageToken"`, `"offset"`).
+
+Must be set together with `nextPagePath`.
+- `next_page_path` (String) JMESPath expression applied to each raw response to extract the cursor or token
+for the next page (e.g. `"nextCursor"`, `"pagination.nextToken"`). An absent,
+null, or empty-string result stops pagination. Both string and numeric values are
+supported — numbers are converted to their decimal string representation before
+being forwarded as a query parameter.
+
+Must be set together with `nextPageParam`.
+
+**Supported pagination styles:**
+- **Cursor/token-based** — server returns an opaque token in the response body
+(e.g. `{"nextCursor": "abc123"}`). Set `nextPagePath: "nextCursor"` and the
+platform forwards it verbatim on the next request.
+- **Server-computed offset/page** — server echoes back the next offset or page
+number in the response body (e.g. `{"nextOffset": 50}` or `{"nextPage": 2}`).
+Set `nextPagePath: "nextOffset"` and the platform forwards the value as-is.
+
+**Not supported:**
+- **Client-computed offset** — APIs where the client must compute `offset += limit`
+itself (e.g. `?offset=0&limit=50` with no next-offset in the response). Workaround:
+ask the API provider to return the next offset in the response body, or bake a
+fixed page size into the URL and use a server-side cursor instead.
+- **Client-computed page number** — APIs where the client increments `?page=N`
+itself with no next-page value in the response. Same workaround applies.
+- **Link header** — `Link: <url>; rel="next"` in HTTP response headers. The
+platform only inspects the response body.
+- `query_param` (String) Query parameter name used to pass the extracted source value.
+**Required for GET endpoints.** The value is URL-encoded and appended as `?{queryParam}={sourceValue}`.
+
+Example: `queryParam: "q"` → `GET /products?q=blue+widget`
+- `response_path` (String) JMESPath expression applied to the response body to extract the enrichment value.
+Omit to use the entire response body as the result.
+
+**For agent reasoning:** use a wildcard projection (e.g. `items[*]` or `results[*].data`)
+so the endpoint's list of candidates is flattened into an array before being passed to the LLM.
+A non-wildcard path (e.g. `data.product`) extracts a single value treated as one candidate.
+
+**Response size:** the platform reads at most 50 MB of the response body before decoding,
+regardless of the Content-Length header.
+
+
+
+<a id="nestedatt--extra_config"></a>
+### Nested Schema for `extra_config`
+
+Optional:
+
+- `enable_bounding_boxes` (Boolean) When true, return per-section and per-entity-mention coordinates in
+the parse event's `fieldBoundingBoxes` map (same shape as Extract:
+JSON Pointer key → array of `{page, left, top, width, height}` with
+coordinates normalized to [0, 1]). Keys are `/sections/{N}` and
+`/entities/{N}/occurrences/{M}` into the parse output. Only applies
+to the open-ended discovery path (no `schema`) and to vision input
+types. Bedrock-backed parse functions silently return an empty map
+(no native bbox support). Defaults to false.
 
 
 <a id="nestedatt--parse_config"></a>
@@ -220,6 +347,9 @@ Results are always returned as an array (list) and automatically sorted by cosin
 
 Optional:
 
+- `default_bucket` (String) Optional bucket NAME that parse-extracted entities land in when no
+call-level bucket is supplied. Lower precedence than a call-level bucket,
+higher than the account+environment default.
 - `extract_entities` (Boolean) When true, extract named entities (people, organizations, products,
 studies, identifiers, etc.) and the relationships between them, and
 dedupe by canonical name within the document. When false, only
@@ -244,6 +374,26 @@ Optional:
 
 - `next_function_id` (String)
 - `next_function_name` (String)
+
+
+<a id="nestedatt--render_config"></a>
+### Nested Schema for `render_config`
+
+Required:
+
+- `template` (Attributes) (see [below for nested schema](#nestedatt--render_config--template))
+
+<a id="nestedatt--render_config--template"></a>
+### Nested Schema for `render_config.template`
+
+Required:
+
+- `base64` (String) Base64-encoded `.docx` bytes. In the Bem CLI, use `@path/to/file` to embed it automatically.
+
+Optional:
+
+- `name` (String) Original upload filename (e.g. `contract.docx`), stored for display only. Does not affect where the template is stored.
+
 
 
 <a id="nestedatt--semantic_page_split_config"></a>
@@ -275,27 +425,32 @@ Read-Only:
 
 - `audit` (Attributes) Audit trail information for the function. (see [below for nested schema](#nestedatt--function--audit))
 - `classifications` (Attributes List) List of classifications a classify function can produce. Shares the underlying route list shape. (see [below for nested schema](#nestedatt--function--classifications))
-- `config` (Attributes) Configuration for enrich function with semantic search steps.
+- `config` (Attributes) Configuration for an enrich function.
 
 **How Enrich Functions Work:**
 
-Enrich functions use semantic search to augment JSON data with relevant information from collections.
-They take JSON input (typically from a transform function), extract specified fields, perform vector-based
-semantic search against collections, and inject the results back into the data.
+Enrich functions augment JSON input with data from external sources. They take JSON input
+(typically from a previous function), extract specified fields, fetch or search for matching
+data, and inject the results back into the JSON.
+
+**Data Sources:**
+- **Collections** (`source: "collection"`): Vector/keyword search against a BEM collection.
+Best for semantic matching against pre-indexed documents.
+- **Endpoints** (`source: "endpoint"`): HTTP call to any user-provided REST API.
+Best for looking up live data from CRMs, ERPs, or other external systems.
+Optionally uses LLM agent reasoning to rank candidates returned by the endpoint.
 
 **Input Requirements:**
-- Must receive JSON input (typically uploaded to S3 from a previous function)
-- Can be chained after transform or other functions that produce JSON output
+- Must receive JSON input (typically from a previous function's output)
 
 **Example Use Cases:**
-- Match product descriptions to SKU codes from a product catalog
-- Enrich customer data with account information
-- Link order line items to inventory records
+- Match product descriptions to SKU codes from a product catalog collection
+- Enrich customer data with account details from a CRM endpoint
+- Use LLM agent reasoning to fuzzy-match line item descriptions to catalog products
 
 **Configuration:**
-- Define one or more enrichment steps
-- Each step extracts values, searches a collection, and injects results
-- Steps are executed sequentially (see [below for nested schema](#nestedatt--function--config))
+- Define named endpoints (for endpoint-source steps)
+- Define one or more enrichment steps; steps are executed sequentially (see [below for nested schema](#nestedatt--function--config))
 - `description` (String) Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.
 - `destination_type` (String) Destination type for a Send function.
 Available values: "webhook", "s3", "google_drive".
@@ -305,11 +460,17 @@ Available values: "webhook", "s3", "google_drive".
 (pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.
 When true, the function returns the document regions (page, coordinates) from which each
 field was extracted.
+- `extra_config` (Attributes) Cross-cutting toggles for Parse functions. Mirrors the `extraConfig`
+surface on Extract / Join — separated from `parseConfig` so the per-call
+Parse output shape stays distinct from operator-level execution flags. (see [below for nested schema](#nestedatt--function--extra_config))
 - `function_id` (String) Unique identifier of function.
 - `function_name` (String) Name of function. Must be UNIQUE on a per-environment basis.
 - `google_drive_folder_id` (String) Google Drive folder ID. Present when destinationType is google_drive. Managed via Paragon OAuth.
 - `join_type` (String) The type of join to perform.
 Available values: "standard".
+- `native_visual_input` (Boolean) When true, image and PDF inputs are sent directly to the model for
+routing instead of being OCR'd to text first. Defaults to true for new
+classify functions and false for the legacy route type.
 - `output_schema` (String) Desired output structure defined in standard JSON Schema convention.
 - `output_schema_name` (String) Name of output schema object.
 - `parse_config` (Attributes) Per-version configuration for a Parse function.
@@ -321,6 +482,13 @@ linking (an environment-wide concern). (see [below for nested schema](#nestedatt
 - `pre_count` (Boolean) Reducing the risk of the model stopping early on long documents.
 Trade-off: Increases total latency.
 - `print_page_split_config` (Attributes) Configuration for print page splitting. (see [below for nested schema](#nestedatt--function--print_page_split_config))
+- `render_config` (Attributes) Per-version configuration for a Render function.
+
+Render emits a `.docx` from schema-typed JSON by composing the JSON into a
+`.docx` template. The template document is stored server-side; this response
+exposes only the contract derived from it. Schema validation runs internally
+in the ML service against the bundled core schema; no customer-supplied
+schema rides this surface. (see [below for nested schema](#nestedatt--function--render_config))
 - `s3_bucket` (String) S3 bucket to upload the payload to. Present when destinationType is s3.
 - `s3_prefix` (String) S3 key prefix (folder path). Optional, present when destinationType is s3.
 - `semantic_page_split_config` (Attributes) Configuration for semantic page splitting. (see [below for nested schema](#nestedatt--function--semantic_page_split_config))
@@ -332,7 +500,7 @@ perform calculations, and create new data structures tailored to your needs.
 Available values: "print_page", "semantic_page".
 - `tabular_chunking_enabled` (Boolean) Whether tabular chunking is enabled on the pipeline. This processes tables in CSV/Excel in row batches, rather than all rows at once.
 - `tags` (List of String) Array of tags to categorize and organize functions.
-- `type` (String) Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse".
+- `type` (String) Available values: "transform", "extract", "analyze", "classify", "send", "split", "join", "payload_shaping", "enrich", "parse", "render".
 - `used_in_workflows` (Attributes List) List of workflows that use this function. (see [below for nested schema](#nestedatt--function--used_in_workflows))
 - `version_num` (Number) Version number of function.
 - `webhook_signing_enabled` (Boolean) Whether webhook payloads are signed with an HMAC-SHA256 `bem-signature` header.
@@ -430,21 +598,103 @@ Read-Only:
 
 Read-Only:
 
-- `steps` (Attributes List) Array of enrichment steps to execute sequentially (see [below for nested schema](#nestedatt--function--config--steps))
+- `endpoints` (Attributes List) Named HTTP endpoints available to endpoint-source steps.
+Each endpoint must have a unique `name` referenced by the step's `endpointName`.
+Required when any step uses `source: "endpoint"`. (see [below for nested schema](#nestedatt--function--config--endpoints))
+- `steps` (Attributes List) Array of enrichment steps to execute sequentially. (see [below for nested schema](#nestedatt--function--config--steps))
+
+<a id="nestedatt--function--config--endpoints"></a>
+### Nested Schema for `function.config.endpoints`
+
+Read-Only:
+
+- `body_template` (String) JSON body template for POST requests.
+**Required for POST endpoints.** Must contain the `{value}` placeholder, which is replaced
+with the extracted source value at runtime.
+
+Example: `bodyTemplate: "{\"query\": \"{value}\", \"limit\": 10}"`
+- `headers` (String) Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).
+- `match_instructions` (String) Natural-language instructions for LLM agent reasoning.
+
+When set, the candidates fetched from the endpoint are passed to an LLM with these
+instructions, which selects the best match(es) and returns them ranked best-first.
+Each injected result has the shape `{ data, rank, confidence, reasoning? }` (rank is
+1-based, 1 = best).
+
+When omitted, the raw fetched value is injected without any LLM involvement.
+- `match_top_k` (Number) Maximum number of ranked matches to return per source value when `matchInstructions`
+is set (default: 1). Ignored when `matchInstructions` is empty.
+- `max_candidates` (Number) LLM batch size during agent reasoning (default: 50). All candidates — across all
+fetched pages — are scored in batches of this size. Smaller values reduce per-call
+token usage; larger values mean fewer LLM calls. Ignored when `matchInstructions`
+is empty.
+- `max_pages` (Number) Maximum number of pages to fetch (default: 10). Acts as a safety cap against
+infinite pagination loops when the server never returns an empty cursor.
+- `method` (String) HTTP method to use.
+Available values: "GET", "POST".
+- `name` (String) Unique name for this endpoint, referenced by enrichStep.endpointName.
+- `next_page_param` (String) Query parameter name used to pass the cursor on subsequent GET requests, or the
+`{placeholder}` name used in the POST `bodyTemplate` (e.g. `"cursor"`,
+`"pageToken"`, `"offset"`).
+
+Must be set together with `nextPagePath`.
+- `next_page_path` (String) JMESPath expression applied to each raw response to extract the cursor or token
+for the next page (e.g. `"nextCursor"`, `"pagination.nextToken"`). An absent,
+null, or empty-string result stops pagination. Both string and numeric values are
+supported — numbers are converted to their decimal string representation before
+being forwarded as a query parameter.
+
+Must be set together with `nextPageParam`.
+
+**Supported pagination styles:**
+- **Cursor/token-based** — server returns an opaque token in the response body
+(e.g. `{"nextCursor": "abc123"}`). Set `nextPagePath: "nextCursor"` and the
+platform forwards it verbatim on the next request.
+- **Server-computed offset/page** — server echoes back the next offset or page
+number in the response body (e.g. `{"nextOffset": 50}` or `{"nextPage": 2}`).
+Set `nextPagePath: "nextOffset"` and the platform forwards the value as-is.
+
+**Not supported:**
+- **Client-computed offset** — APIs where the client must compute `offset += limit`
+itself (e.g. `?offset=0&limit=50` with no next-offset in the response). Workaround:
+ask the API provider to return the next offset in the response body, or bake a
+fixed page size into the URL and use a server-side cursor instead.
+- **Client-computed page number** — APIs where the client increments `?page=N`
+itself with no next-page value in the response. Same workaround applies.
+- **Link header** — `Link: <url>; rel="next"` in HTTP response headers. The
+platform only inspects the response body.
+- `query_param` (String) Query parameter name used to pass the extracted source value.
+**Required for GET endpoints.** The value is URL-encoded and appended as `?{queryParam}={sourceValue}`.
+
+Example: `queryParam: "q"` → `GET /products?q=blue+widget`
+- `response_path` (String) JMESPath expression applied to the response body to extract the enrichment value.
+Omit to use the entire response body as the result.
+
+**For agent reasoning:** use a wildcard projection (e.g. `items[*]` or `results[*].data`)
+so the endpoint's list of candidates is flattened into an array before being passed to the LLM.
+A non-wildcard path (e.g. `data.product`) extracts a single value treated as one candidate.
+
+**Response size:** the platform reads at most 50 MB of the response body before decoding,
+regardless of the Content-Length header.
+- `url` (String) Full URL of the endpoint (must be http:// or https://).
+
 
 <a id="nestedatt--function--config--steps"></a>
 ### Nested Schema for `function.config.steps`
 
 Read-Only:
 
-- `collection_name` (String) Name of the collection to search against. The collection must exist and contain items.
+- `collection_name` (String) Name of the collection to search against.
+Required when `source` is `"collection"`. The collection must exist and contain items.
 Supports hierarchical paths when used with `includeSubcollections`.
+- `endpoint_name` (String) Name of an endpoint defined in `enrichConfig.endpoints`.
+Required when `source` is `"endpoint"`.
 - `include_score` (Boolean) Whether to include cosine distance scores in results.
 Cosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).
 Lower scores indicate better semantic similarity.
 
-When enabled, each result includes a `cosine_distance` field (semantic mode)
-or a `hybrid_score` field (hybrid mode).
+When enabled, each result includes a `score` field with `scoreType` identifying
+the metric (`"cosineDistance"` for semantic mode, `"hybridScore"` for hybrid mode).
 - `include_subcollections` (Boolean) When true, searches all collections under the hierarchical path.
 For example, "customers" will match "customers", "customers.premium", etc.
 - `score_threshold` (Number) Maximum cosine distance threshold for filtering results (default: 0.6).
@@ -474,8 +724,13 @@ For most semantic search use cases, good matches typically fall in the 0.2 - 0.5
 - Use for: Tags, categories, partial identifiers
 - Example: Balances semantic meaning with exact keyword matching
 Available values: "semantic", "exact", "hybrid".
-- `source_field` (String) JMESPath expression to extract source data for semantic search.
-Can extract single values or arrays. All extracted values will be used for search.
+- `source` (String) Where to fetch enrichment data from (default: `"collection"`).
+
+- `"collection"`: Vector/keyword search against a BEM collection. Requires `collectionName`.
+- `"endpoint"`: HTTP call to a named endpoint defined in `enrichConfig.endpoints`. Requires `endpointName`.
+Available values: "collection", "endpoint".
+- `source_field` (String) JMESPath expression to extract source data.
+Can extract a single value or an array. Each extracted value is looked up independently.
 - `target_field` (String) Field path where enriched results should be placed.
 Use simple field names (e.g., "enriched_products").
 Results are always injected as an array (list), regardless of topK value.
@@ -486,6 +741,26 @@ Results are always returned as an array (list) and automatically sorted by cosin
 - 1: Returns array with single best match: `[{...}]`
 - >1: Returns array with multiple matches: `[{...}, {...}, ...]`
 
+When re-ranking is on (the default for `semantic`/`hybrid`), `topK` is still the
+number of results returned — re-ranking changes their order, not the count. The
+candidate pool the LLM chooses from is widened internally to at least 5, so even
+`topK: 1` re-ranks a real pool and returns the single best match.
+
+
+
+<a id="nestedatt--function--extra_config"></a>
+### Nested Schema for `function.extra_config`
+
+Read-Only:
+
+- `enable_bounding_boxes` (Boolean) When true, return per-section and per-entity-mention coordinates in
+the parse event's `fieldBoundingBoxes` map (same shape as Extract:
+JSON Pointer key → array of `{page, left, top, width, height}` with
+coordinates normalized to [0, 1]). Keys are `/sections/{N}` and
+`/entities/{N}/occurrences/{M}` into the parse output. Only applies
+to the open-ended discovery path (no `schema`) and to vision input
+types. Bedrock-backed parse functions silently return an empty map
+(no native bbox support). Defaults to false.
 
 
 <a id="nestedatt--function--parse_config"></a>
@@ -493,6 +768,9 @@ Results are always returned as an array (list) and automatically sorted by cosin
 
 Read-Only:
 
+- `default_bucket` (String) Optional bucket NAME that parse-extracted entities land in when no
+call-level bucket is supplied. Lower precedence than a call-level bucket,
+higher than the account+environment default.
 - `extract_entities` (Boolean) When true, extract named entities (people, organizations, products,
 studies, identifiers, etc.) and the relationships between them, and
 dedupe by canonical name within the document. When false, only
@@ -516,6 +794,56 @@ schema.
 Read-Only:
 
 - `next_function_id` (String)
+
+
+<a id="nestedatt--function--render_config"></a>
+### Nested Schema for `function.render_config`
+
+Read-Only:
+
+- `template` (Attributes) The uploaded template: its filename, a short-lived presigned download URL,
+and the placeholder/style contract derived from it. Absent on configs
+created before template capture existed. (see [below for nested schema](#nestedatt--function--render_config--template))
+
+<a id="nestedatt--function--render_config--template"></a>
+### Nested Schema for `function.render_config.template`
+
+Read-Only:
+
+- `download_url` (String) Short-lived presigned URL to download the stored `.docx`. The private
+storage location is never exposed.
+- `list_kinds` (List of String) Supported list kinds (`decimal`, `bullet`) the template's `numbering.xml`
+defines an `abstractNum` for. Empty means the template can hold no list, so
+any list primitive will fail at render.
+- `name` (String) Original filename of the uploaded template (e.g. `contract.docx`), echoed
+back for display. Absent on templates uploaded before the filename was
+captured.
+- `placeholders` (Attributes) The placeholder contract a Render template declares, grouped by how each
+placeholder is filled. Derived from the template at create/update time by
+scanning its `docxtpl` tags; not user-supplied.
+
+- `stringKeys`: bare string placeholders (`{{ key }}`) filled with a single
+value.
+- `blockKeys`: wrapped-primitive placeholders (`{{p key }}`) — bind one core
+primitive (paragraph, table, image, or list). The placeholder's own
+paragraph dissolves and is replaced by the rendered subdocument's blocks,
+rather than substituting text inline. (see [below for nested schema](#nestedatt--function--render_config--template--placeholders))
+- `style_ids` (List of String) Paragraph/character style IDs the uploaded template defines and the
+rendered output can reference. Derived from the template's `styles.xml` at
+create/update time.
+- `table_style_ids` (List of String) Style IDs whose type is table — the styles a `table` primitive's required
+`styleId` can name. Empty means the template defines no table style, so any
+table primitive will fail at render.
+
+<a id="nestedatt--function--render_config--template--placeholders"></a>
+### Nested Schema for `function.render_config.template.placeholders`
+
+Read-Only:
+
+- `block_keys` (List of String)
+- `string_keys` (List of String)
+
+
 
 
 <a id="nestedatt--function--semantic_page_split_config"></a>

@@ -85,6 +85,41 @@ type encoderEntry struct {
 	patch      bool
 }
 
+// withPatch, withRoot, and withDateFormat each return a NEW *encoder with
+// one field changed, never mutating the receiver. encoderFunc closures are
+// built once and cached forever in the package-level `encoders` map, then
+// invoked concurrently by unrelated calls that share the same cached
+// closure - mutating a shared *encoder's fields at call time (the previous
+// pattern throughout this file: save, mutate, defer-restore) is a data race
+// the moment two goroutines invoke the same cached closure at once.
+//
+// Deliberately always allocates a fresh copy, even if the target value
+// already matches - a "return e unchanged" shortcut sounds harmless but
+// reintroduces sharing: many unrelated, potentially-concurrent build paths
+// converge on the same (patch=false, root=false) context, and without a
+// fresh copy they'd all keep receiving the same shared receiver, still
+// racing on whichever field this is not guarding (see withDateFormat below,
+// which no shortcut here would have prevented). The cache key is based on
+// values, not pointer identity, so caching behavior is unaffected either
+// way.
+func (e *encoder) withPatch(patch bool) *encoder {
+	child := *e
+	child.patch = patch
+	return &child
+}
+
+func (e *encoder) withRoot(root bool) *encoder {
+	child := *e
+	child.root = root
+	return &child
+}
+
+func (e *encoder) withDateFormat(dateFormat string) *encoder {
+	child := *e
+	child.dateFormat = dateFormat
+	return &child
+}
+
 func errorFromDiagnostics(diags diag.Diagnostics) error {
 	if diags == nil {
 		return nil
@@ -180,10 +215,19 @@ func (e *encoder) newTypeEncoder(t reflect.Type) encoderFunc {
 		}
 	}
 
-	e.root = false
+	// Use a child encoder rather than mutating e - e may be a long-lived, shared
+	// instance captured inside a cached closure and invoked concurrently by
+	// unrelated calls (see withPatch/withRoot).
+	child := e.withRoot(false)
 	switch t.Kind() {
 	case reflect.Pointer:
 		inner := t.Elem()
+		// Both variants are the same across every invocation of the closure below,
+		// so build them once here rather than re-deriving (and, for the
+		// zero-state case, re-allocating a child *encoder via withPatch) on every
+		// call.
+		normalEncoder := child.typeEncoder(inner)
+		noPatchEncoder := child.withPatch(false).typeEncoder(inner)
 
 		return func(p reflect.Value, s reflect.Value) ([]byte, error) {
 			// if we end up accessing missing fields/properties, we might end up with an invalid
@@ -206,36 +250,34 @@ func (e *encoder) newTypeEncoder(t reflect.Type) encoderFunc {
 
 			// If state is nil, then there is no value to unset. We still have to pass some value in for state, so
 			// we pass in the plan value so it marshals as-is.
+			innerEncoder := normalEncoder
 			if s.IsNil() {
 				s = reflect.New(p.Type().Elem())
 
 				// If we're patching, then we force serializing the plan as a non-patch. Otherwise, if the plan is the
 				// zero value of the inner type, then it wouldn't be included (because we are setting a zero value
 				// state above) when it should be.
-				previousPatch := e.patch
-				e.patch = false
-				defer func() { e.patch = previousPatch }()
+				innerEncoder = noPatchEncoder
 			}
 
-			innerEncoder := e.typeEncoder(inner)
 			return innerEncoder(p.Elem(), s.Elem())
 		}
 	case reflect.Struct:
 		attrType := reflect.TypeOf((*attr.Value)(nil)).Elem()
 		if t.Implements(attrType) {
-			return e.newTerraformTypeEncoder(t)
+			return child.newTerraformTypeEncoder(t)
 		}
-		return e.newStructTypeEncoder(t, isRoot)
+		return child.newStructTypeEncoder(t, isRoot)
 	case reflect.Array:
 		fallthrough
 	case reflect.Slice:
-		return e.newArrayTypeEncoder(t)
+		return child.newArrayTypeEncoder(t)
 	case reflect.Map:
-		return e.newMapEncoder(t)
+		return child.newMapEncoder(t)
 	case reflect.Interface:
-		return e.newInterfaceEncoder()
+		return child.newInterfaceEncoder()
 	default:
-		return e.newPrimitiveTypeEncoder(t)
+		return child.newPrimitiveTypeEncoder(t)
 	}
 }
 
@@ -297,17 +339,14 @@ func (e *encoder) newPrimitiveTypeEncoder(t reflect.Type) encoderFunc {
 
 func (e *encoder) newArrayTypeEncoder(t reflect.Type) encoderFunc {
 	// patch behavior for arrays is that the whole thing gets encoded if there are any updates within it, so
-	// we set patch to false for the inner encoder.
+	// we set patch to false for the inner encoder. Uses a child encoder rather than mutating e - this
+	// closure is cached and invoked concurrently by unrelated calls (see withPatch).
 	arrayPatch := e.patch
-	e.patch = false
-	defer func() { e.patch = arrayPatch }()
+	itemEnc := e.withPatch(false)
 
-	itemEncoder := e.typeEncoder(t.Elem())
+	itemEncoder := itemEnc.typeEncoder(t.Elem())
 
 	return func(plan reflect.Value, state reflect.Value) ([]byte, error) {
-		e.patch = false
-		defer func() { e.patch = arrayPatch }()
-
 		stateNil := !state.IsValid() || state.IsNil()
 		planNil := !plan.IsValid() || plan.IsNil()
 		if stateNil && planNil {
@@ -388,7 +427,7 @@ func (e *encoder) terraformUnwrappedDynamicEncoder(unwrap terraformUnwrappingFun
 	})
 }
 
-func (e encoder) handleNullAndUndefined(innerFunc func(attr.Value, attr.Value) ([]byte, error)) encoderFunc {
+func (e *encoder) handleNullAndUndefined(innerFunc func(attr.Value, attr.Value) ([]byte, error)) encoderFunc {
 	return func(plan reflect.Value, state reflect.Value) ([]byte, error) {
 		var tfPlan attr.Value
 		var tfState attr.Value
@@ -471,7 +510,7 @@ func UnwrapTerraformAttrValue(ctx context.Context, value attr.Value) (out any, d
 	}
 }
 
-func (e encoder) newTerraformTypeEncoder(t reflect.Type) encoderFunc {
+func (e *encoder) newTerraformTypeEncoder(t reflect.Type) encoderFunc {
 	ctx := context.TODO()
 
 	// Note that we use pointers for primitives so that we can distinguish between a zero and omitted value.
@@ -613,18 +652,17 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 				continue
 			}
 
+			fieldEnc := e
 			dateFormat, ok := parseFormatStructTag(field)
-			oldFormat := e.dateFormat
 			if ok {
 				switch dateFormat {
 				case "date-time":
-					e.dateFormat = time.RFC3339
+					fieldEnc = e.withDateFormat(time.RFC3339)
 				case "date":
-					e.dateFormat = "2006-01-02"
+					fieldEnc = e.withDateFormat("2006-01-02")
 				}
 			}
-			encoderFields = append(encoderFields, encoderField{ptag, e.typeEncoder(field.Type), idx})
-			e.dateFormat = oldFormat
+			encoderFields = append(encoderFields, encoderField{ptag, fieldEnc.typeEncoder(field.Type), idx})
 		}
 	}
 	collectEncoderFields(t, []int{})
@@ -712,7 +750,7 @@ func (e *encoder) newCustomTimeTypeEncoder() encoderFunc {
 	})
 }
 
-func (e encoder) newInterfaceEncoder() encoderFunc {
+func (e *encoder) newInterfaceEncoder() encoderFunc {
 	return func(plan reflect.Value, state reflect.Value) ([]byte, error) {
 		plan = plan.Elem()
 		state = state.Elem()
@@ -751,6 +789,11 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 	pairKeys := map[string]bool{}
 	pairs := []mapPair{}
 	keyEncoder := e.typeEncoder(plan.Type().Key())
+	// Both element encoders are the same for every key in this map, so build them
+	// once here rather than re-deriving (and, for the plan-only case,
+	// re-allocating a child *encoder via withPatch) on every iteration below.
+	elementEncoder := e.typeEncoder(plan.Type().Elem())
+	plainElementEncoder := e.withPatch(false).typeEncoder(plan.Type().Elem())
 
 	iter := plan.MapRange()
 	for iter.Next() {
@@ -799,16 +842,11 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 				// We are patching and this key's value didn't change so we can omit it.
 				continue
 			}
-			elementEncoder := e.typeEncoder(plan.Type().Elem())
 			encodedValue, err = elementEncoder(pair.plan, pair.state)
 		} else if pair.plan.IsValid() {
 			// This key exists in the plan, but it doesn't exist in the state. Just encode the full value associated
 			// with this key in the plan.
-			prevPatch := e.patch
-			e.patch = false
-			elementEncoder := e.typeEncoder(plan.Type().Elem())
-			encodedValue, err = elementEncoder(pair.plan, pair.plan)
-			e.patch = prevPatch
+			encodedValue, err = plainElementEncoder(pair.plan, pair.plan)
 		} else {
 			// This key exists in the state, but not the plan, so we should delete it by sending null (see below).
 			encodedValue = nil
@@ -831,6 +869,9 @@ func (e *encoder) encodeMapEntries(json []byte, plan reflect.Value, state reflec
 
 func (e *encoder) newMapEncoder(_ reflect.Type) encoderFunc {
 	patch := e.patch
+	// Built once here rather than on every invocation of the Kind-mismatch
+	// branch below - see withPatch.
+	noPatchEnc := e.withPatch(false)
 	return func(plan reflect.Value, state reflect.Value) ([]byte, error) {
 		stateNil := !state.IsValid() || state.IsNil()
 		planNil := !plan.IsValid() || plan.IsNil()
@@ -841,10 +882,7 @@ func (e *encoder) newMapEncoder(_ reflect.Type) encoderFunc {
 		} else if patch && !stateNil && reflect.DeepEqual(plan.Interface(), state.Interface()) {
 			return nil, nil
 		} else if state.Kind() != plan.Kind() {
-			e.patch = false
-			json, err := e.encodeMapEntries([]byte("{}"), plan, plan)
-			e.patch = patch
-			return json, err
+			return noPatchEnc.encodeMapEntries([]byte("{}"), plan, plan)
 		}
 
 		return e.encodeMapEntries([]byte("{}"), plan, state)
