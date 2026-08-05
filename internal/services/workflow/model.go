@@ -26,6 +26,7 @@ type WorkflowModel struct {
 	CreatedAt       timetypes.RFC3339                                          `tfsdk:"created_at" json:"createdAt,computed,no_refresh" format:"date-time"`
 	EmailAddress    types.String                                               `tfsdk:"email_address" json:"emailAddress,computed,no_refresh"`
 	Error           types.String                                               `tfsdk:"error" json:"error,computed"`
+	Restricted      types.Bool                                                 `tfsdk:"restricted" json:"restricted,computed,no_refresh"`
 	UpdatedAt       timetypes.RFC3339                                          `tfsdk:"updated_at" json:"updatedAt,computed,no_refresh" format:"date-time"`
 	VersionNum      types.Int64                                                `tfsdk:"version_num" json:"versionNum,computed,no_refresh"`
 	Audit           customfield.NestedObject[WorkflowAuditModel]               `tfsdk:"audit" json:"audit,computed,no_refresh"`
@@ -121,6 +122,7 @@ type WorkflowWorkflowModel struct {
 	MainNodeName types.String                                                  `tfsdk:"main_node_name" json:"mainNodeName,computed"`
 	Name         types.String                                                  `tfsdk:"name" json:"name,computed"`
 	Nodes        customfield.NestedObjectList[WorkflowWorkflowNodesModel]      `tfsdk:"nodes" json:"nodes,computed"`
+	Restricted   types.Bool                                                    `tfsdk:"restricted" json:"restricted,computed"`
 	UpdatedAt    timetypes.RFC3339                                             `tfsdk:"updated_at" json:"updatedAt,computed" format:"date-time"`
 	VersionNum   types.Int64                                                   `tfsdk:"version_num" json:"versionNum,computed"`
 	Audit        customfield.NestedObject[WorkflowWorkflowAuditModel]          `tfsdk:"audit" json:"audit,computed"`
