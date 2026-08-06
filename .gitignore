@@ -4,6 +4,14 @@
 dist/
 terraform-provider-bem
 
+## local env files (direnv + 1Password) - see .env.example
+## .envrc and .env.example ARE tracked; everything below holds machine-local
+## config or resolved secrets and must not be.
+.env
+.env*.local
+.envrc.local
+.direnv/
+
 # sandbox character-device artifacts
 .bash_profile
 .bashrc

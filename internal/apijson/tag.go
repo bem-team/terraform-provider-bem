@@ -31,6 +31,14 @@ type parsedStructTag struct {
 	// otherwise just use the UseStateForUnknown plan modifier
 	// NOTE #2: won't work if update behavior is 'patch'
 	encodeStateValueWhenPlanUnknown bool
+	// Fields sharing the same non-empty atomicGroup value must be sent together
+	// on a patch whenever any one of them changes, even if the others are
+	// individually unchanged from state. Set via `atomic_group=<name>` on the
+	// json tag. Use this when the API rejects a partial update to a set of
+	// sibling fields (e.g. a server-side "these must all be provided together"
+	// constraint) that JSON Merge Patch's per-field diffing can't express on
+	// its own.
+	atomicGroup string
 }
 
 func parseJSONStructTag(field reflect.StructField) (tag parsedStructTag, ok bool) {
@@ -65,6 +73,10 @@ func parseJSONStructTag(field reflect.StructField) (tag parsedStructTag, ok bool
 			tag.encodeStateValueWhenPlanUnknown = true
 		case "force_encode":
 			tag.forceEncode = true
+		default:
+			if group, ok := strings.CutPrefix(part, "atomic_group="); ok {
+				tag.atomicGroup = group
+			}
 		}
 	}
 	return

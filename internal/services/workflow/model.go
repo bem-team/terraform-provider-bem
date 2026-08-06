@@ -15,14 +15,20 @@ type WorkflowWorkflowEnvelope struct {
 }
 
 type WorkflowModel struct {
-	ID              types.String                                               `tfsdk:"id" json:"-,computed"`
-	Name            types.String                                               `tfsdk:"name" json:"name,required"`
-	MainNodeName    types.String                                               `tfsdk:"main_node_name" json:"mainNodeName,required,no_refresh"`
-	Nodes           *[]*WorkflowNodesModel                                     `tfsdk:"nodes" json:"nodes,required,no_refresh"`
+	ID   types.String `tfsdk:"id" json:"-,computed"`
+	Name types.String `tfsdk:"name" json:"name,required"`
+	// mainNodeName, nodes, and edges must all be sent together whenever the
+	// workflow DAG changes - the API rejects a partial update
+	// ("mainNodeName, nodes, and edges must all be provided together when
+	// updating the workflow DAG"). atomic_group=dag makes MarshalJSONForUpdate
+	// re-send all three together whenever any one of them changed, even if
+	// the others are individually unchanged from state.
+	MainNodeName    types.String                                               `tfsdk:"main_node_name" json:"mainNodeName,required,no_refresh,atomic_group=dag"`
+	Nodes           *[]*WorkflowNodesModel                                     `tfsdk:"nodes" json:"nodes,required,no_refresh,atomic_group=dag"`
 	DisplayName     types.String                                               `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
 	Tags            *[]types.String                                            `tfsdk:"tags" json:"tags,optional,no_refresh"`
 	Connectors      *[]*WorkflowConnectorsModel                                `tfsdk:"connectors" json:"connectors,optional,no_refresh"`
-	Edges           *[]*WorkflowEdgesModel                                     `tfsdk:"edges" json:"edges,optional,no_refresh"`
+	Edges           *[]*WorkflowEdgesModel                                     `tfsdk:"edges" json:"edges,optional,no_refresh,atomic_group=dag"`
 	CreatedAt       timetypes.RFC3339                                          `tfsdk:"created_at" json:"createdAt,computed,no_refresh" format:"date-time"`
 	EmailAddress    types.String                                               `tfsdk:"email_address" json:"emailAddress,computed,no_refresh"`
 	Error           types.String                                               `tfsdk:"error" json:"error,computed"`

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/bem-team/bem-go-sdk"
@@ -23,9 +25,32 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"bem": providerserver.NewProtocol6WithError(internal.NewProvider("test")()),
 }
 
+// prodAPIHost is the SDK's default host. Reaching it from an acceptance test
+// means BEM_BASE_URL was never set, not that someone chose production.
+const prodAPIHost = "api.bem.ai"
+
 func testAccPreCheck(t *testing.T) {
 	if os.Getenv("BEM_API_KEY") == "" {
 		t.Fatal("BEM_API_KEY must be set for acceptance tests (point it at a staging environment, not production)")
+	}
+
+	// These tests create and destroy real functions and workflows. With
+	// BEM_BASE_URL unset the SDK falls back to production, so "forgot one
+	// export" plus a production key is all it takes to run the whole suite
+	// against live customer data - the failure mode is silent unless the key
+	// happens to be environment-scoped. Require the host to be chosen
+	// explicitly and refuse production outright; a comment asking people to
+	// point at staging isn't a control.
+	baseURL := os.Getenv("BEM_BASE_URL")
+	if baseURL == "" {
+		t.Fatalf("BEM_BASE_URL must be set explicitly for acceptance tests - leaving it unset defaults to production (https://%s). Use a staging host, e.g. https://api.stg.us1.bem.ai", prodAPIHost)
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		t.Fatalf("BEM_BASE_URL %q is not a valid URL: %v", baseURL, err)
+	}
+	if strings.EqualFold(parsed.Hostname(), prodAPIHost) {
+		t.Fatalf("refusing to run acceptance tests against production (%s) - these create and destroy real functions and workflows. Use a staging host, e.g. https://api.stg.us1.bem.ai", prodAPIHost)
 	}
 }
 
