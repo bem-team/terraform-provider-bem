@@ -76,6 +76,11 @@ type encoderField struct {
 	tag parsedStructTag
 	fn  encoderFunc
 	idx []int
+	// noPatchFn re-encodes this field ignoring plan/state equality - only built
+	// when tag.atomicGroup is set. Used to force this field into the output
+	// when a sibling in the same atomic group changed but this field, taken on
+	// its own, didn't.
+	noPatchFn encoderFunc
 }
 
 type encoderEntry struct {
@@ -83,6 +88,33 @@ type encoderEntry struct {
 	dateFormat string
 	root       bool
 	patch      bool
+}
+
+// resolvePlanField applies the encode_state_for_unknown substitution: when the
+// plan value is unknown and the field opted in, the state value stands in for
+// it. Shared by both passes of newStructTypeEncoder so they always encode the
+// same value for a given field.
+func resolvePlanField(planField, stateField reflect.Value, tag parsedStructTag) reflect.Value {
+	if !tag.encodeStateValueWhenPlanUnknown || !planField.IsValid() || !stateField.IsValid() {
+		return planField
+	}
+	attrType := reflect.TypeOf((*attr.Value)(nil)).Elem()
+	if !planField.Type().Implements(attrType) {
+		return planField
+	}
+	if planField.Interface().(attr.Value).IsUnknown() {
+		return stateField
+	}
+	return planField
+}
+
+// isNilPointerToSlice reports whether v is an unset pointer-to-slice, i.e. a
+// list field nobody configured (or one the plan cleared). Used only by
+// atomic_group handling, to distinguish the one shape where "absent" has an
+// unambiguous non-null equivalent to send instead - an empty array - from
+// every other shape, where it doesn't and the field is left out.
+func isNilPointerToSlice(v reflect.Value) bool {
+	return v.Kind() == reflect.Pointer && v.IsNil() && v.Type().Elem().Kind() == reflect.Slice
 }
 
 // withPatch, withRoot, and withDateFormat each return a NEW *encoder with
@@ -641,7 +673,7 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 			// `extras` because that field shouldn't be part of the public API. We
 			// also want to only keep the top level extras
 			if ptag.extras && len(index) == 0 {
-				extraEncoder = &encoderField{ptag, e.typeEncoder(field.Type.Elem()), idx}
+				extraEncoder = &encoderField{tag: ptag, fn: e.typeEncoder(field.Type.Elem()), idx: idx}
 				continue
 			}
 			if ptag.name == "-" {
@@ -662,7 +694,11 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 					fieldEnc = e.withDateFormat("2006-01-02")
 				}
 			}
-			encoderFields = append(encoderFields, encoderField{ptag, fieldEnc.typeEncoder(field.Type), idx})
+			ecf := encoderField{tag: ptag, fn: fieldEnc.typeEncoder(field.Type), idx: idx}
+			if ptag.atomicGroup != "" {
+				ecf.noPatchFn = fieldEnc.withPatch(false).typeEncoder(field.Type)
+			}
+			encoderFields = append(encoderFields, ecf)
 		}
 	}
 	collectEncoderFields(t, []int{})
@@ -676,35 +712,104 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 		json = []byte("{}")
 
 		someFieldsSet := false
-		for _, ef := range encoderFields {
+		// Tracks, per atomic_group name, whether any member of that group was
+		// encoded below (i.e. genuinely changed under patch diffing). Fields
+		// omitted from that first pass but sharing a since-triggered group get
+		// force-encoded in the second pass, once every field's own diff result
+		// is known.
+		groupChanged := map[string]bool{}
+		omitted := make([]bool, len(encoderFields))
+		for i, ef := range encoderFields {
 			planField := plan.FieldByIndex(ef.idx)
 			stateField, err := state.FieldByIndexErr(ef.idx)
 			if err != nil {
 				stateField = planField
 			}
 
-			planFieldUnknown := false
-			if planField.IsValid() {
-				attrType := reflect.TypeOf((*attr.Value)(nil)).Elem()
-				if planField.Type().Implements(attrType) {
-					planFieldUnknown = planField.Interface().(attr.Value).IsUnknown()
-				}
-			}
-
-			if planFieldUnknown && ef.tag.encodeStateValueWhenPlanUnknown && stateField.IsValid() {
-				planField = stateField
-			}
+			planField = resolvePlanField(planField, stateField, ef.tag)
 			encoded, err := ef.fn(planField, stateField)
 			if err != nil {
 				return nil, err
 			}
 			if encoded == nil {
+				omitted[i] = true
 				continue
+			}
+			if ef.tag.atomicGroup != "" && e.patch {
+				groupChanged[ef.tag.atomicGroup] = true
+				// JSON Merge Patch encodes "plan cleared a field that state had"
+				// as an explicit null. For an ordinary field that's the correct
+				// delete signal, but an atomic group is a full-replace block:
+				// the API counts how many group keys are *present as values* and
+				// rejects a partial set, and a null deserializes server-side to
+				// the same nil pointer as an absent key - so a null here still
+				// trips the very 400 this group exists to prevent. For a
+				// pointer-to-slice member, cleared means "no items", so send an
+				// explicit empty array instead. Deliberately narrow (same
+				// reflect.Kind check as the pass-2 fallback below) rather than
+				// inventing a non-null default for shapes we haven't seen.
+				if bytes.Equal(encoded, explicitJsonNull) && isNilPointerToSlice(planField) {
+					encoded = []byte("[]")
+				}
 			}
 			someFieldsSet = true
 			json, err = sjson.SetRawBytes(json, EscapeSJSONKey(ef.tag.name), encoded)
 			if err != nil {
 				return nil, err
+			}
+		}
+
+		// A sibling in the group changed but this field's own patch diff came
+		// back empty - force it in anyway via its non-patch encoder so the API
+		// receives every atomic_group member together, as it requires.
+		if len(groupChanged) > 0 {
+			for i, ef := range encoderFields {
+				if !omitted[i] || ef.tag.atomicGroup == "" || !groupChanged[ef.tag.atomicGroup] {
+					continue
+				}
+				planField := plan.FieldByIndex(ef.idx)
+				stateField, err := state.FieldByIndexErr(ef.idx)
+				if err != nil {
+					stateField = planField
+				}
+				planField = resolvePlanField(planField, stateField, ef.tag)
+				encoded, err := ef.noPatchFn(planField, stateField)
+				if err != nil {
+					return nil, err
+				}
+				if encoded == nil {
+					// A nil pointer-to-slice (field never configured, e.g. an
+					// optional list nobody set) has nothing for noPatchFn to
+					// encode either - nil-in-both-plan-and-state means "omit"
+					// to every encoder in this file, patch or not. But the
+					// group requires this key present regardless, and "never
+					// configured" for a list means "no items", so send an
+					// explicit empty array rather than silently dropping the
+					// key the API demanded.
+					if !isNilPointerToSlice(planField) {
+						// Nothing to send, and silently omitting it would emit a
+						// partial group - the exact shape the API rejects, and
+						// the exact bug atomic_group exists to prevent. Failing
+						// here names the field and the group; the alternative is
+						// a bare 400 from the server with nothing pointing back
+						// to this code. Unreachable via WorkflowModel today
+						// (main_node_name is Required, and every generated list
+						// field is a pointer-to-slice), but atomic_group is a
+						// general mechanism now.
+						return nil, fmt.Errorf(
+							"apijson: cannot encode field %q of atomic group %q: a sibling in the group changed, "+
+								"so the API requires this field to be sent too, but it has no value to send. "+
+								"Give it a value in the plan, or drop it from the group",
+							ef.tag.name, ef.tag.atomicGroup,
+						)
+					}
+					encoded = []byte("[]")
+				}
+				someFieldsSet = true
+				json, err = sjson.SetRawBytes(json, EscapeSJSONKey(ef.tag.name), encoded)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
