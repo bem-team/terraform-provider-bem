@@ -88,6 +88,7 @@ type WorkflowsItemsDataSourceModel struct {
 	MainNodeName types.String                                                     `tfsdk:"main_node_name" json:"mainNodeName,computed"`
 	Name         types.String                                                     `tfsdk:"name" json:"name,computed"`
 	Nodes        customfield.NestedObjectList[WorkflowsNodesDataSourceModel]      `tfsdk:"nodes" json:"nodes,computed"`
+	Restricted   types.Bool                                                       `tfsdk:"restricted" json:"restricted,computed"`
 	UpdatedAt    timetypes.RFC3339                                                `tfsdk:"updated_at" json:"updatedAt,computed" format:"date-time"`
 	VersionNum   types.Int64                                                      `tfsdk:"version_num" json:"versionNum,computed"`
 	Audit        customfield.NestedObject[WorkflowsAuditDataSourceModel]          `tfsdk:"audit" json:"audit,computed"`
