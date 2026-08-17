@@ -19,16 +19,19 @@ type FunctionsFunctionsListDataSourceEnvelope struct {
 }
 
 type FunctionsDataSourceModel struct {
-	DisplayName   types.String                                                `tfsdk:"display_name" query:"displayName,optional"`
-	FunctionIDs   *[]types.String                                             `tfsdk:"function_ids" query:"functionIDs,optional"`
-	FunctionNames *[]types.String                                             `tfsdk:"function_names" query:"functionNames,optional"`
-	Tags          *[]types.String                                             `tfsdk:"tags" query:"tags,optional"`
-	Types         *[]types.String                                             `tfsdk:"types" query:"types,optional"`
-	WorkflowIDs   *[]types.String                                             `tfsdk:"workflow_ids" query:"workflowIDs,optional"`
-	WorkflowNames *[]types.String                                             `tfsdk:"workflow_names" query:"workflowNames,optional"`
-	SortOrder     types.String                                                `tfsdk:"sort_order" query:"sortOrder,computed_optional"`
-	MaxItems      types.Int64                                                 `tfsdk:"max_items"`
-	Items         customfield.NestedObjectList[FunctionsItemsDataSourceModel] `tfsdk:"items"`
+	DisplayName             types.String                                                `tfsdk:"display_name" query:"displayName,optional"`
+	IncludeExtraSettings    types.Bool                                                  `tfsdk:"include_extra_settings" query:"includeExtraSettings,optional"`
+	FunctionIDs             *[]types.String                                             `tfsdk:"function_ids" query:"functionIDs,optional"`
+	FunctionNames           *[]types.String                                             `tfsdk:"function_names" query:"functionNames,optional"`
+	Tags                    *[]types.String                                             `tfsdk:"tags" query:"tags,optional"`
+	Types                   *[]types.String                                             `tfsdk:"types" query:"types,optional"`
+	WorkflowIDVersionNums   *[]types.String                                             `tfsdk:"workflow_id_version_nums" query:"workflowIDVersionNums,optional"`
+	WorkflowIDs             *[]types.String                                             `tfsdk:"workflow_ids" query:"workflowIDs,optional"`
+	WorkflowNameVersionNums *[]types.String                                             `tfsdk:"workflow_name_version_nums" query:"workflowNameVersionNums,optional"`
+	WorkflowNames           *[]types.String                                             `tfsdk:"workflow_names" query:"workflowNames,optional"`
+	SortOrder               types.String                                                `tfsdk:"sort_order" query:"sortOrder,computed_optional"`
+	MaxItems                types.Int64                                                 `tfsdk:"max_items"`
+	Items                   customfield.NestedObjectList[FunctionsItemsDataSourceModel] `tfsdk:"items"`
 }
 
 func (m *FunctionsDataSourceModel) toListParams(_ context.Context) (params bem.FunctionListParams, diags diag.Diagnostics) {
@@ -62,24 +65,41 @@ func (m *FunctionsDataSourceModel) toListParams(_ context.Context) (params bem.F
 			mWorkflowIDs = append(mWorkflowIDs, item.ValueString())
 		}
 	}
+	mWorkflowIDVersionNums := []string{}
+	if m.WorkflowIDVersionNums != nil {
+		for _, item := range *m.WorkflowIDVersionNums {
+			mWorkflowIDVersionNums = append(mWorkflowIDVersionNums, item.ValueString())
+		}
+	}
 	mWorkflowNames := []string{}
 	if m.WorkflowNames != nil {
 		for _, item := range *m.WorkflowNames {
 			mWorkflowNames = append(mWorkflowNames, item.ValueString())
 		}
 	}
+	mWorkflowNameVersionNums := []string{}
+	if m.WorkflowNameVersionNums != nil {
+		for _, item := range *m.WorkflowNameVersionNums {
+			mWorkflowNameVersionNums = append(mWorkflowNameVersionNums, item.ValueString())
+		}
+	}
 
 	params = bem.FunctionListParams{
-		FunctionIDs:   mFunctionIDs,
-		FunctionNames: mFunctionNames,
-		Tags:          mTags,
-		Types:         mTypes,
-		WorkflowIDs:   mWorkflowIDs,
-		WorkflowNames: mWorkflowNames,
+		FunctionIDs:             mFunctionIDs,
+		FunctionNames:           mFunctionNames,
+		Tags:                    mTags,
+		Types:                   mTypes,
+		WorkflowIDs:             mWorkflowIDs,
+		WorkflowIDVersionNums:   mWorkflowIDVersionNums,
+		WorkflowNames:           mWorkflowNames,
+		WorkflowNameVersionNums: mWorkflowNameVersionNums,
 	}
 
 	if !m.DisplayName.IsNull() {
 		params.DisplayName = param.NewOpt(m.DisplayName.ValueString())
+	}
+	if !m.IncludeExtraSettings.IsNull() {
+		params.IncludeExtraSettings = param.NewOpt(m.IncludeExtraSettings.ValueBool())
 	}
 	if !m.SortOrder.IsNull() {
 		params.SortOrder = bem.FunctionListParamsSortOrder(m.SortOrder.ValueString())

@@ -142,7 +142,7 @@ func testAccCreateWorkflowOutOfBand(t *testing.T, workflowName, functionName str
 		// Best-effort: if Terraform's own destroy already removed this (the
 		// normal path once the test successfully imports it), this 404s and
 		// is ignored.
-		_ = client.Workflows.Delete(context.Background(), workflowName)
+		_, _ = client.Workflows.Delete(context.Background(), workflowName)
 	})
 }
 

@@ -304,7 +304,17 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 						Optional:    true,
 						ElementType: types.StringType,
 					},
+					"function_id_version_nums": schema.ListAttribute{
+						Description: "Return only workflows with a node pinned to a specific function\nversion. Each entry is `<functionID>.<versionNum>` — for example\n`fn_2c9AXIj48cUYJtCuv1gsQtHGDzK.4`.",
+						Optional:    true,
+						ElementType: types.StringType,
+					},
 					"function_names": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+					"function_name_version_nums": schema.ListAttribute{
+						Description: "Return only workflows with a node pinned to a specific function\nversion, keyed by function name. Each entry is\n`<functionName>.<versionNum>` — for example `invoice-extract.4`.",
 						Optional:    true,
 						ElementType: types.StringType,
 					},
