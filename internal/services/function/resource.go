@@ -150,6 +150,7 @@ func (r *FunctionResource) Read(ctx context.Context, req resource.ReadRequest, r
 	_, err := r.client.Functions.Get(
 		ctx,
 		data.FunctionName.ValueString(),
+		bem.FunctionGetParams{},
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)
@@ -214,6 +215,7 @@ func (r *FunctionResource) ImportState(ctx context.Context, req resource.ImportS
 	_, err := r.client.Functions.Get(
 		ctx,
 		path,
+		bem.FunctionGetParams{},
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)

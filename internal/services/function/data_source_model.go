@@ -15,10 +15,21 @@ import (
 )
 
 type FunctionDataSourceModel struct {
-	ID           types.String                                              `tfsdk:"id" path:"functionName,computed"`
-	FunctionName types.String                                              `tfsdk:"function_name" path:"functionName,optional"`
-	Function     customfield.NestedObject[FunctionFunctionDataSourceModel] `tfsdk:"function" json:"function,computed"`
-	FindOneBy    *FunctionFindOneByDataSourceModel                         `tfsdk:"find_one_by"`
+	ID                   types.String                                              `tfsdk:"id" path:"functionName,computed"`
+	FunctionName         types.String                                              `tfsdk:"function_name" path:"functionName,optional"`
+	IncludeExtraSettings types.Bool                                                `tfsdk:"include_extra_settings" query:"includeExtraSettings,optional"`
+	Function             customfield.NestedObject[FunctionFunctionDataSourceModel] `tfsdk:"function" json:"function,computed"`
+	FindOneBy            *FunctionFindOneByDataSourceModel                         `tfsdk:"find_one_by"`
+}
+
+func (m *FunctionDataSourceModel) toReadParams(_ context.Context) (params bem.FunctionGetParams, diags diag.Diagnostics) {
+	params = bem.FunctionGetParams{}
+
+	if !m.IncludeExtraSettings.IsNull() {
+		params.IncludeExtraSettings = param.NewOpt(m.IncludeExtraSettings.ValueBool())
+	}
+
+	return
 }
 
 func (m *FunctionDataSourceModel) toListParams(_ context.Context) (params bem.FunctionListParams, diags diag.Diagnostics) {
@@ -52,24 +63,41 @@ func (m *FunctionDataSourceModel) toListParams(_ context.Context) (params bem.Fu
 			mFindOneByWorkflowIDs = append(mFindOneByWorkflowIDs, item.ValueString())
 		}
 	}
+	mFindOneByWorkflowIDVersionNums := []string{}
+	if m.FindOneBy.WorkflowIDVersionNums != nil {
+		for _, item := range *m.FindOneBy.WorkflowIDVersionNums {
+			mFindOneByWorkflowIDVersionNums = append(mFindOneByWorkflowIDVersionNums, item.ValueString())
+		}
+	}
 	mFindOneByWorkflowNames := []string{}
 	if m.FindOneBy.WorkflowNames != nil {
 		for _, item := range *m.FindOneBy.WorkflowNames {
 			mFindOneByWorkflowNames = append(mFindOneByWorkflowNames, item.ValueString())
 		}
 	}
+	mFindOneByWorkflowNameVersionNums := []string{}
+	if m.FindOneBy.WorkflowNameVersionNums != nil {
+		for _, item := range *m.FindOneBy.WorkflowNameVersionNums {
+			mFindOneByWorkflowNameVersionNums = append(mFindOneByWorkflowNameVersionNums, item.ValueString())
+		}
+	}
 
 	params = bem.FunctionListParams{
-		FunctionIDs:   mFindOneByFunctionIDs,
-		FunctionNames: mFindOneByFunctionNames,
-		Tags:          mFindOneByTags,
-		Types:         mFindOneByTypes,
-		WorkflowIDs:   mFindOneByWorkflowIDs,
-		WorkflowNames: mFindOneByWorkflowNames,
+		FunctionIDs:             mFindOneByFunctionIDs,
+		FunctionNames:           mFindOneByFunctionNames,
+		Tags:                    mFindOneByTags,
+		Types:                   mFindOneByTypes,
+		WorkflowIDs:             mFindOneByWorkflowIDs,
+		WorkflowIDVersionNums:   mFindOneByWorkflowIDVersionNums,
+		WorkflowNames:           mFindOneByWorkflowNames,
+		WorkflowNameVersionNums: mFindOneByWorkflowNameVersionNums,
 	}
 
 	if !m.FindOneBy.DisplayName.IsNull() {
 		params.DisplayName = param.NewOpt(m.FindOneBy.DisplayName.ValueString())
+	}
+	if !m.IncludeExtraSettings.IsNull() {
+		params.IncludeExtraSettings = param.NewOpt(m.IncludeExtraSettings.ValueBool())
 	}
 	if !m.FindOneBy.SortOrder.IsNull() {
 		params.SortOrder = bem.FunctionListParamsSortOrder(m.FindOneBy.SortOrder.ValueString())
@@ -254,12 +282,14 @@ type FunctionFunctionRenderConfigTemplatePlaceholdersDataSourceModel struct {
 }
 
 type FunctionFindOneByDataSourceModel struct {
-	DisplayName   types.String    `tfsdk:"display_name" query:"displayName,optional"`
-	FunctionIDs   *[]types.String `tfsdk:"function_ids" query:"functionIDs,optional"`
-	FunctionNames *[]types.String `tfsdk:"function_names" query:"functionNames,optional"`
-	SortOrder     types.String    `tfsdk:"sort_order" query:"sortOrder,computed_optional"`
-	Tags          *[]types.String `tfsdk:"tags" query:"tags,optional"`
-	Types         *[]types.String `tfsdk:"types" query:"types,optional"`
-	WorkflowIDs   *[]types.String `tfsdk:"workflow_ids" query:"workflowIDs,optional"`
-	WorkflowNames *[]types.String `tfsdk:"workflow_names" query:"workflowNames,optional"`
+	DisplayName             types.String    `tfsdk:"display_name" query:"displayName,optional"`
+	FunctionIDs             *[]types.String `tfsdk:"function_ids" query:"functionIDs,optional"`
+	FunctionNames           *[]types.String `tfsdk:"function_names" query:"functionNames,optional"`
+	SortOrder               types.String    `tfsdk:"sort_order" query:"sortOrder,computed_optional"`
+	Tags                    *[]types.String `tfsdk:"tags" query:"tags,optional"`
+	Types                   *[]types.String `tfsdk:"types" query:"types,optional"`
+	WorkflowIDs             *[]types.String `tfsdk:"workflow_ids" query:"workflowIDs,optional"`
+	WorkflowIDVersionNums   *[]types.String `tfsdk:"workflow_id_version_nums" query:"workflowIDVersionNums,optional"`
+	WorkflowNames           *[]types.String `tfsdk:"workflow_names" query:"workflowNames,optional"`
+	WorkflowNameVersionNums *[]types.String `tfsdk:"workflow_name_version_nums" query:"workflowNameVersionNums,optional"`
 }

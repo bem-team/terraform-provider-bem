@@ -184,7 +184,7 @@ func (r *WorkflowResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	err := r.client.Workflows.Delete(
+	_, err := r.client.Workflows.Delete(
 		ctx,
 		data.Name.ValueString(),
 		option.WithMiddleware(logging.Middleware(ctx)),
