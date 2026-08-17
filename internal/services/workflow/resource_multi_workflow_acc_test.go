@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/bem-team/bem-go-sdk"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -111,7 +112,7 @@ func testAccCheckWorkflowNodeVersionMatchesFunction(workflowName, functionName s
 		client := testAccBemClient()
 		ctx := context.Background()
 
-		fnRes, err := client.Functions.Get(ctx, functionName)
+		fnRes, err := client.Functions.Get(ctx, functionName, bem.FunctionGetParams{})
 		if err != nil {
 			return fmt.Errorf("failed to fetch function %q from API: %w", functionName, err)
 		}

@@ -153,6 +153,7 @@ func testAccCheckFunctionDestroy(s *terraform.State) error {
 		_, err := client.Functions.Get(
 			ctx,
 			rs.Primary.Attributes["function_name"],
+			bem.FunctionGetParams{},
 			option.WithResponseBodyInto(&res),
 		)
 		if res != nil && res.StatusCode == http.StatusNotFound {
