@@ -87,10 +87,17 @@ func (d *FunctionDataSource) Read(ctx context.Context, req datasource.ReadReques
 		data.FunctionName = ts[0].FunctionName
 	}
 
+	params, diags := data.toReadParams(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	res := new(http.Response)
 	_, err := d.client.Functions.Get(
 		ctx,
 		data.FunctionName.ValueString(),
+		params,
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)

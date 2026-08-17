@@ -26,6 +26,10 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 			"display_name": schema.StringAttribute{
 				Optional: true,
 			},
+			"include_extra_settings": schema.BoolAttribute{
+				Description: "Populate each function's `extraConfig` block. Omitted or `false` by\ndefault, in which case `extraConfig` is absent from the response.",
+				Optional:    true,
+			},
 			"function_ids": schema.ListAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
@@ -60,7 +64,17 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 				},
 				ElementType: types.StringType,
 			},
+			"workflow_id_version_nums": schema.ListAttribute{
+				Description: "Return only functions referenced by a specific workflow version. Each\nentry is `<workflowID>.<versionNum>` — for example\n`wf_2c9AXIj48cUYJtCuv1gsQtHGDzK.3`.",
+				Optional:    true,
+				ElementType: types.StringType,
+			},
 			"workflow_ids": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"workflow_name_version_nums": schema.ListAttribute{
+				Description: "Return only functions referenced by a specific workflow version, keyed\nby workflow name. Each entry is `<workflowName>.<versionNum>` — for\nexample `invoice-pipeline.3`.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
