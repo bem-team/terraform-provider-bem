@@ -20,7 +20,7 @@ if [ -f "Brewfile" ] && [ "$(uname -s)" = "Darwin" ] && [ "${SKIP_BREW:-}" != "1
 fi
 
 # Mark the necessary Go modules as private to avoid Go's proxy
-export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/bem-team/bem-go-sdk,github.com/stainless-sdks/bem-go"
+export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/bem-team/bem-go-sdk,github.com/bem-team/bem-go-sdk-staging"
 
 echo "==> Installing Go dependencies…"
 go mod tidy -e || true
