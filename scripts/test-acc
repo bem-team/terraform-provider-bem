@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# Mark the necessary Go modules as private to avoid Go's proxy
+export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/bem-team/bem-go-sdk,github.com/stainless-sdks/bem-go"
+
+# Acceptance tests are opt-in, per CONTRIBUTING.md and HashiCorp convention.
+# ./scripts/test and CI both leave TF_ACC unset so they stay unit-only; this
+# script is the opt-in, equivalent to the `make testacc` target other providers
+# use.
+#
+# These tests create and DESTROY real functions and workflows in whatever
+# environment BEM_BASE_URL points at. testAccPreCheck is the authoritative
+# guard - it refuses to run without BEM_BASE_URL and refuses api.bem.ai
+# outright - but keep it pointed at staging regardless.
+export TF_ACC=1
+
+if [ -z "${BEM_BASE_URL:-}" ]; then
+  echo "error: BEM_BASE_URL is not set." >&2
+  echo "       Acceptance tests create real resources; set a staging host" >&2
+  echo "       (see .env.example) rather than letting the SDK default." >&2
+  exit 1
+fi
+
+# Baked in rather than left to the caller:
+#
+#   -race     internal/apijson is shared, concurrently-invoked codegen
+#             infrastructure that every resource's Create/Update marshaling
+#             routes through. BEM-1367's data race corrupted ~99/100 calls
+#             under -race and never once without it, and reached a release
+#             because CI wasn't passing it.
+#
+#   -count=1  Go caches test results and cannot see network calls, so a
+#             re-run of an API-touching test prints "(cached)" having
+#             contacted nothing. A cached acceptance pass is not a pass.
+#
+#   -timeout  go test defaults to 10m per test binary; acceptance suites
+#             outgrow that as they accumulate.
+#
+# Extra arguments are appended, so callers can still narrow a run
+# (e.g. ./scripts/test-acc -run TestAccWorkflowResource -v) and later flags
+# override these defaults.
+echo "==> Running tests, INCLUDING acceptance tests against $BEM_BASE_URL"
+echo "==> These create and destroy real resources."
+# Every destroy check GETs a deleted resource and expects a 404. Those 404s are
+# currently recorded in APM as http.status_code 500 and counted as errors, so a
+# full run against staging can trip the "stg - High number of errors" monitor and
+# page on-call. Prefer a dev host until that is fixed.
+case "${BEM_BASE_URL}" in
+  *stg*)
+    echo "==> NOTE: staging host. The destroy checks' expected 404s are currently" >&2
+    echo "    logged as 5xx and can trip the stg error-rate monitor. A dev host" >&2
+    echo "    avoids paging on-call." >&2
+    ;;
+esac
+exec go test ./... -race -count=1 -timeout 120m "$@"

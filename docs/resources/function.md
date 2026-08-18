@@ -194,19 +194,22 @@ Required when `source` is `"collection"`. The collection must exist and contain 
 Supports hierarchical paths when used with `includeSubcollections`.
 - `endpoint_name` (String) Name of an endpoint defined in `enrichConfig.endpoints`.
 Required when `source` is `"endpoint"`.
-- `include_score` (Boolean) Whether to include cosine distance scores in results.
-Cosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).
-Lower scores indicate better semantic similarity.
+- `include_score` (Boolean) Whether to include retrieval scores in results.
 
-When enabled, each result includes a `score` field with `scoreType` identifying
-the metric (`"cosineDistance"` for semantic mode, `"hybridScore"` for hybrid mode).
+When enabled, each result includes a `score` field and a `scoreType` identifying the
+metric:
+- `"cosineDistance"` (semantic): 0.0 (perfect match) to 2.0 (completely dissimilar) — lower is better.
+- `"hybridScore"` (hybrid): an RRF score mapped onto cosine distance's 0–2 scale — lower is better (0.0 = top of both rankings).
 - `include_subcollections` (Boolean) When true, searches all collections under the hierarchical path.
 For example, "customers" will match "customers", "customers.premium", etc.
 - `score_threshold` (Number) Maximum cosine distance threshold for filtering results (default: 0.6).
 Results with cosine distance above this threshold are excluded.
 
-**Only applies to `semantic` and `hybrid` search modes.**
-Exact search does not use cosine distance and ignores this setting.
+**Applies to `semantic` and `hybrid` search modes.** For `hybrid`, the Reciprocal Rank
+Fusion score is mapped onto the same 0–2 dissimilarity scale as cosine distance, so a
+single threshold works for both. `exact` uses keyword matching and ignores this setting.
+Note the default `0.6` is calibrated for cosine distance and is relatively strict for
+hybrid.
 
 Cosine distance ranges from 0.0 (identical) to 2.0 (opposite):
 - 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)
@@ -225,7 +228,10 @@ For most semantic search use cases, good matches typically fall in the 0.2 - 0.5
 - Use for: SKU numbers, routing numbers, account IDs, exact tags
 - Example: "SKU-12345" only matches items containing that exact text
 
-**hybrid**: Combined search using 20% semantic + 80% sparse embeddings (keyword-based).
+**hybrid**: Fuses the dense (semantic) and sparse (keyword) rankings with weighted
+Reciprocal Rank Fusion (k=60, 0.5 dense / 0.5 sparse). Because RRF combines rank
+positions rather than raw scores, semantic meaning and exact-token overlap contribute
+on the same scale.
 - Use for: Tags, categories, partial identifiers
 - Example: Balances semantic meaning with exact keyword matching
 Available values: "semantic", "exact", "hybrid".
@@ -235,8 +241,10 @@ Available values: "semantic", "exact", "hybrid".
 - `"endpoint"`: HTTP call to a named endpoint defined in `enrichConfig.endpoints`. Requires `endpointName`.
 Available values: "collection", "endpoint".
 - `top_k` (Number) Number of top matching results to return per query (default: 1).
-Results are always returned as an array (list) and automatically sorted by cosine distance
-(best match = lowest distance first).
+Results are always returned as an array (list), sorted best match first (by cosine
+distance for `semantic`/`exact`, or by fused relevance score for `hybrid`). Duplicate
+items are collapsed, so results are distinct: you get `topK` distinct matches unless the
+collection contains fewer.
 
 - 1: Returns array with single best match: `[{...}]`
 - >1: Returns array with multiple matches: `[{...}, {...}, ...]`
@@ -264,7 +272,7 @@ Optional:
 with the extracted source value at runtime.
 
 Example: `bodyTemplate: "{\"query\": \"{value}\", \"limit\": 10}"`
-- `headers` (String) Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).
+- `headers` (String) Additional HTTP headers to include in every request, as a JSON object mapping header name to value. In HCL use `jsonencode({ Authorization = "Bearer <token>" })` - a raw header line such as `Authorization: Bearer <token>` is rejected at plan time as invalid JSON.
 - `match_instructions` (String) Natural-language instructions for LLM agent reasoning.
 
 When set, the candidates fetched from the endpoint are passed to an LLM with these
@@ -613,7 +621,7 @@ Read-Only:
 with the extracted source value at runtime.
 
 Example: `bodyTemplate: "{\"query\": \"{value}\", \"limit\": 10}"`
-- `headers` (String) Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).
+- `headers` (String) Additional HTTP headers to include in every request, as a JSON object mapping header name to value. In HCL use `jsonencode({ Authorization = "Bearer <token>" })` - a raw header line such as `Authorization: Bearer <token>` is rejected at plan time as invalid JSON.
 - `match_instructions` (String) Natural-language instructions for LLM agent reasoning.
 
 When set, the candidates fetched from the endpoint are passed to an LLM with these
@@ -689,19 +697,22 @@ Required when `source` is `"collection"`. The collection must exist and contain 
 Supports hierarchical paths when used with `includeSubcollections`.
 - `endpoint_name` (String) Name of an endpoint defined in `enrichConfig.endpoints`.
 Required when `source` is `"endpoint"`.
-- `include_score` (Boolean) Whether to include cosine distance scores in results.
-Cosine distance ranges from 0.0 (perfect match) to 2.0 (completely dissimilar).
-Lower scores indicate better semantic similarity.
+- `include_score` (Boolean) Whether to include retrieval scores in results.
 
-When enabled, each result includes a `score` field with `scoreType` identifying
-the metric (`"cosineDistance"` for semantic mode, `"hybridScore"` for hybrid mode).
+When enabled, each result includes a `score` field and a `scoreType` identifying the
+metric:
+- `"cosineDistance"` (semantic): 0.0 (perfect match) to 2.0 (completely dissimilar) — lower is better.
+- `"hybridScore"` (hybrid): an RRF score mapped onto cosine distance's 0–2 scale — lower is better (0.0 = top of both rankings).
 - `include_subcollections` (Boolean) When true, searches all collections under the hierarchical path.
 For example, "customers" will match "customers", "customers.premium", etc.
 - `score_threshold` (Number) Maximum cosine distance threshold for filtering results (default: 0.6).
 Results with cosine distance above this threshold are excluded.
 
-**Only applies to `semantic` and `hybrid` search modes.**
-Exact search does not use cosine distance and ignores this setting.
+**Applies to `semantic` and `hybrid` search modes.** For `hybrid`, the Reciprocal Rank
+Fusion score is mapped onto the same 0–2 dissimilarity scale as cosine distance, so a
+single threshold works for both. `exact` uses keyword matching and ignores this setting.
+Note the default `0.6` is calibrated for cosine distance and is relatively strict for
+hybrid.
 
 Cosine distance ranges from 0.0 (identical) to 2.0 (opposite):
 - 0.0 - 0.3: Very similar (strict threshold, high-quality matches only)
@@ -720,7 +731,10 @@ For most semantic search use cases, good matches typically fall in the 0.2 - 0.5
 - Use for: SKU numbers, routing numbers, account IDs, exact tags
 - Example: "SKU-12345" only matches items containing that exact text
 
-**hybrid**: Combined search using 20% semantic + 80% sparse embeddings (keyword-based).
+**hybrid**: Fuses the dense (semantic) and sparse (keyword) rankings with weighted
+Reciprocal Rank Fusion (k=60, 0.5 dense / 0.5 sparse). Because RRF combines rank
+positions rather than raw scores, semantic meaning and exact-token overlap contribute
+on the same scale.
 - Use for: Tags, categories, partial identifiers
 - Example: Balances semantic meaning with exact keyword matching
 Available values: "semantic", "exact", "hybrid".
@@ -735,8 +749,10 @@ Can extract a single value or an array. Each extracted value is looked up indepe
 Use simple field names (e.g., "enriched_products").
 Results are always injected as an array (list), regardless of topK value.
 - `top_k` (Number) Number of top matching results to return per query (default: 1).
-Results are always returned as an array (list) and automatically sorted by cosine distance
-(best match = lowest distance first).
+Results are always returned as an array (list), sorted best match first (by cosine
+distance for `semantic`/`exact`, or by fused relevance score for `hybrid`). Duplicate
+items are collapsed, so results are distinct: you get `topK` distinct matches unless the
+collection contains fewer.
 
 - 1: Returns array with single best match: `[{...}]`
 - >1: Returns array with multiple matches: `[{...}, {...}, ...]`

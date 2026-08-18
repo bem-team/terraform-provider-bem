@@ -49,6 +49,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								"id": schema.StringAttribute{
 									Description: "Unique identifier of function. Provide either id or name, not both.",
 									Optional:    true,
+									Computed:    true,
 								},
 								"name": schema.StringAttribute{
 									Description: "Name of function. Must be UNIQUE on a per-environment basis. Provide either id or name, not both.",
@@ -57,6 +58,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 								"version_num": schema.Int64Attribute{
 									Description: "Version number of function.",
 									Optional:    true,
+									Computed:    true,
 								},
 							},
 						},
@@ -84,6 +86,8 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"connectors": schema.ListNestedAttribute{
 				Description: "Connectors to attach to the workflow at creation. If any entry fails to\nprovision, the entire workflow creation is rolled back.",
 				Optional:    true,
+				Computed:    true,
+				CustomType:  customfield.NewNestedObjectListType[WorkflowConnectorsModel](ctx),
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{

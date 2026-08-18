@@ -57,6 +57,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"description": schema.StringAttribute{
 				Description: "Description of classifier. Can be used to provide additional context on classifier's purpose and expected inputs.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"destination_type": schema.StringAttribute{
 				Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
@@ -76,6 +77,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"enable_bounding_boxes": schema.BoolAttribute{
 				Description: "Whether bounding box extraction is enabled. Applies to vision input types\n(pdf, png, jpeg, heic, heif, webp) that dispatch through the analyze path.\nWhen true, the function returns the document regions (page, coordinates) from which each\nfield was extracted. Enabling this automatically configures the function to use the bounding\nbox model. Disabling resets to the default.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"google_drive_folder_id": schema.StringAttribute{
 				Description: "Google Drive folder ID. Required when destinationType is google_drive. Managed via Paragon OAuth.",
@@ -99,6 +101,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"pre_count": schema.BoolAttribute{
 				Description: "Reducing the risk of the model stopping early on long documents.\nTrade-off: Increases total latency. Compatible with\n`enableBoundingBoxes`.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"s3_bucket": schema.StringAttribute{
 				Description: "S3 bucket to upload the payload to. Required when destinationType is s3.",
@@ -122,6 +125,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"tabular_chunking_enabled": schema.BoolAttribute{
 				Description: "Whether tabular chunking is enabled. When true, tables in CSV/Excel files are processed\nin row batches rather than all at once.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"webhook_signing_enabled": schema.BoolAttribute{
 				Description: "Whether to sign webhook deliveries with an HMAC-SHA256 `bem-signature` header.\nDefaults to `true` when omitted — signing is on by default for new send functions.\nSet explicitly to `false` to disable.",
@@ -134,6 +138,8 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 			"tags": schema.ListAttribute{
 				Description: "Array of tags to categorize and organize functions.",
 				Optional:    true,
+				Computed:    true,
+				CustomType:  customfield.NewListType[types.String](ctx),
 				ElementType: types.StringType,
 			},
 			"classifications": schema.ListNestedAttribute{
@@ -381,7 +387,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Optional:    true,
 								},
 								"headers": schema.StringAttribute{
-									Description: "Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).",
+									Description: "Additional HTTP headers to include in every request, as a JSON object mapping header name to value. In HCL use `jsonencode({ Authorization = \"Bearer <token>\" })` - a raw header line such as `Authorization: Bearer <token>` is rejected at plan time as invalid JSON.",
 									Optional:    true,
 									CustomType:  jsontypes.NormalizedType{},
 								},
@@ -886,7 +892,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 											Computed:    true,
 										},
 										"headers": schema.StringAttribute{
-											Description: "Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).",
+											Description: "Additional HTTP headers to include in every request, as a JSON object mapping header name to value. In HCL use `jsonencode({ Authorization = \"Bearer <token>\" })` - a raw header line such as `Authorization: Bearer <token>` is rejected at plan time as invalid JSON.",
 											Computed:    true,
 											CustomType:  jsontypes.NormalizedType{},
 										},

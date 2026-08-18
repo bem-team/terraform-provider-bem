@@ -49,6 +49,22 @@ func UnmarshalRoot(raw []byte, to any) error {
 	return d.unmarshal(raw, to)
 }
 
+// UnmarshalForImport is like [Unmarshal], but also populates fields tagged
+// no_refresh.
+//
+// The no_refresh skip exists for Read: state already holds those values from a
+// previous create or update, and skipping them on refresh is what stops
+// server-side normalisation producing a perpetual diff. On import there is no
+// prior state to preserve, so the skip protects nothing and instead leaves
+// nearly every writable attribute null - which is why the first plan after
+// `terraform import` shows every field changing from null, and why
+// `terraform plan -generate-config-out` cannot emit config for a required
+// no_refresh attribute.
+func UnmarshalForImport(raw []byte, to any) error {
+	d := &decoderBuilder{dateFormat: time.RFC3339, unmarshalComputedOnly: false, ignoreNoRefresh: true}
+	return d.unmarshal(raw, to)
+}
+
 type TerraformUpdateBehavior int
 
 const (
@@ -73,6 +89,10 @@ type decoderBuilder struct {
 
 	// Only updates computed properties on structs
 	unmarshalComputedOnly bool
+
+	// Populate no_refresh fields instead of skipping them. Set only by
+	// [UnmarshalForImport]; see there for why import differs from refresh.
+	ignoreNoRefresh bool
 
 	// This is used to control decoding behavior for computed and computed_optional
 	// fields.
@@ -117,6 +137,12 @@ type decoderEntry struct {
 	root                  bool
 	unmarshalComputedOnly bool
 	tfSkipBehavior        TerraformUpdateBehavior
+	// MUST be part of the cache key. Decoders are cached in a package-level map
+	// keyed by this struct, so leaving it out would let a decoder built for
+	// import be reused for a refresh of the same type - silently making Read
+	// stop honouring no_refresh, depending on which ran first in the process.
+	// That is the cache-poisoning failure class BEM-1367 already shipped once.
+	ignoreNoRefresh bool
 }
 
 func (d *decoderBuilder) unmarshal(raw []byte, to any) error {
@@ -135,6 +161,7 @@ func (d *decoderBuilder) typeDecoder(t reflect.Type) decoderFunc {
 		root:                  d.root,
 		unmarshalComputedOnly: d.unmarshalComputedOnly,
 		tfSkipBehavior:        d.updateBehavior,
+		ignoreNoRefresh:       d.ignoreNoRefresh,
 	}
 
 	if fi, ok := decoders.Load(entry); ok {
@@ -749,8 +776,17 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 	if t.Implements(reflect.TypeOf((*customfield.NestedObjectListLike)(nil)).Elem()) {
 		structType := t.Field(0).Type
 		structSliceType := reflect.SliceOf(structType)
-		var dec decoderFunc
+		// originalDec and alwaysDec are both built here, once, and selected per
+		// call below. The selection MUST be a local variable: the closure
+		// returned here is cached in the package-level `decoders` map and
+		// invoked concurrently (the plugin framework processes resources in
+		// parallel), so a captured `dec` is written by every caller and read
+		// back by whichever goroutine wins - the same data-race class as
+		// BEM-1367's encoder bug, in the read path. Building alwaysDec up front
+		// also keeps the closure from touching the mutable decoderBuilder at
+		// request time.
 		originalDec := d.typeDecoder(structSliceType)
+		alwaysDec := d.alwaysUpdateDecoder(structSliceType)
 		return func(node gjson.Result, value reflect.Value, state *decoderState) error {
 			if !shouldUpdateNested(value, b) {
 				return nil
@@ -763,12 +799,11 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 					return nil
 				}
 			}
+			dec := originalDec
 			if b == IfUnset && (existingObjectListValue.IsNull() || existingObjectListValue.IsUnknown()) {
 				// if the value is unset, we want to recursively populate the value from the JSON,
 				// not just the computed ones
-				dec = d.alwaysUpdateDecoder(structSliceType)
-			} else {
-				dec = originalDec
+				dec = alwaysDec
 			}
 
 			newObjectListValue := reflect.New(structSliceType).Elem()
@@ -789,8 +824,10 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 	if t.Implements(reflect.TypeOf((*customfield.ListLike)(nil)).Elem()) {
 		structType := t.Field(0).Type
 		sliceOfStruct := reflect.SliceOf(structType)
-		var dec decoderFunc
+		// Built once, selected into a local per call - see the NestedObjectList
+		// branch above for why the selection must not be a captured variable.
 		originalDec := d.typeDecoder(sliceOfStruct)
+		alwaysDec := d.alwaysUpdateDecoder(sliceOfStruct)
 		return func(node gjson.Result, value reflect.Value, state *decoderState) error {
 			if !shouldUpdateNested(value, b) {
 				return nil
@@ -803,12 +840,11 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 					return nil
 				}
 			}
+			dec := originalDec
 			if b == IfUnset && (objectListValue.IsNull() || objectListValue.IsUnknown()) {
 				// if the value is unset, we want to recursively populate the value from the JSON,
 				// not just the computed ones
-				dec = d.alwaysUpdateDecoder(sliceOfStruct)
-			} else {
-				dec = originalDec
+				dec = alwaysDec
 			}
 			lv, _ := objectListValue.ValueAttr(ctx)
 			val := reflect.New(sliceOfStruct).Elem()
@@ -826,8 +862,10 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 	if t.Implements(reflect.TypeOf((*customfield.NestedObjectMapLike)(nil)).Elem()) {
 		structType := t.Field(0).Type
 		structMapType := reflect.MapOf(reflect.TypeOf(""), structType)
-		var dec decoderFunc
+		// Built once, selected into a local per call - see the NestedObjectList
+		// branch above for why the selection must not be a captured variable.
 		originalDec := d.typeDecoder(structMapType)
+		alwaysDec := d.alwaysUpdateDecoder(structMapType)
 		return func(node gjson.Result, value reflect.Value, state *decoderState) error {
 			if !shouldUpdateNested(value, b) {
 				return nil
@@ -841,12 +879,11 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 				}
 			}
 
+			dec := originalDec
 			if b == IfUnset && (existingObjectMapValue.IsNull() || existingObjectMapValue.IsUnknown()) {
 				// if the value is unset, we want to recursively populate the value from the JSON,
 				// not just the computed ones
-				dec = d.alwaysUpdateDecoder(structMapType)
-			} else {
-				dec = originalDec
+				dec = alwaysDec
 			}
 
 			newObjectMapValue := reflect.New(structMapType).Elem()
@@ -866,8 +903,10 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 	if t.Implements(reflect.TypeOf((*customfield.MapLike)(nil)).Elem()) {
 		structType := t.Field(0).Type
 		mapOfStruct := reflect.MapOf(reflect.TypeOf(""), structType)
-		var dec decoderFunc
+		// Built once, selected into a local per call - see the NestedObjectList
+		// branch above for why the selection must not be a captured variable.
 		originalDec := d.typeDecoder(mapOfStruct)
+		alwaysDec := d.alwaysUpdateDecoder(mapOfStruct)
 		return func(node gjson.Result, value reflect.Value, state *decoderState) error {
 			if !shouldUpdateNested(value, b) {
 				return nil
@@ -880,12 +919,11 @@ func (d *decoderBuilder) newTerraformTypeDecoder(t reflect.Type) decoderFunc {
 					return nil
 				}
 			}
+			dec := originalDec
 			if b == IfUnset && (objectMapValue.IsNull() || objectMapValue.IsUnknown()) {
 				// if the value is unset, we want to recursively populate the value from the JSON,
 				// not just the computed ones
-				dec = d.alwaysUpdateDecoder(mapOfStruct)
-			} else {
-				dec = originalDec
+				dec = alwaysDec
 			}
 			mv, _ := objectMapValue.ValueAttr(ctx)
 			val := reflect.New(mapOfStruct).Elem()
@@ -1067,7 +1105,7 @@ func (d *decoderBuilder) newStructTypeDecoder(t reflect.Type) decoderFunc {
 					// is to update.
 					d.updateBehavior = Always
 				}
-			} else if ptag.noRefresh {
+			} else if ptag.noRefresh && !d.ignoreNoRefresh {
 				// if no_refresh is set and we're doing a refresh, then skip the value
 				continue
 			}
@@ -1480,6 +1518,12 @@ func (d *decoderBuilder) alwaysUpdateDecoder(t reflect.Type) decoderFunc {
 		dateFormat:            d.dateFormat,
 		unmarshalComputedOnly: false,
 		updateBehavior:        Always,
+		// Carried forward deliberately. Without it, a no_refresh field nested inside
+		// a customfield list, map or nested object would still be skipped on the
+		// import path even though UnmarshalForImport asked for it - the same silent,
+		// order-dependent divergence the decoderEntry cache key exists to prevent.
+		// Unreachable today (every no_refresh tag is top-level) and cheap to hold.
+		ignoreNoRefresh: d.ignoreNoRefresh,
 	}
 	return normalBuilder.typeDecoder(t)
 }

@@ -99,6 +99,11 @@ operations succeeded. (see [below for nested schema](#nestedatt--connector_error
 - `email_address` (String) Inbound email address associated with the workflow, if any.
 - `error` (String) Error message if the workflow retrieval failed.
 - `id` (String) Unique name for the workflow. Must match `^[a-zA-Z0-9_-]{1,128}$`.
+- `restricted` (Boolean) Whether this workflow is hidden from other members of the account in the bem
+web app. When true, only account owners and admins and explicitly granted
+users see the workflow and its calls, outputs, and errors in the app. This
+is a UI-visibility control: API keys are not scoped to workflows, so an
+environment API key still reads a restricted workflow and its data.
 - `updated_at` (String) The date and time the workflow was last updated.
 - `version_num` (Number) Version number of this workflow version.
 - `workflow` (Attributes) V3 read representation of a workflow version. (see [below for nested schema](#nestedatt--workflow))
@@ -249,6 +254,11 @@ not part of version history. (see [below for nested schema](#nestedatt--workflow
 - `main_node_name` (String) Name of the entry-point call-site node.
 - `name` (String) Unique name of the workflow within the environment.
 - `nodes` (Attributes List) All call-site nodes in this workflow version's DAG. (see [below for nested schema](#nestedatt--workflow--nodes))
+- `restricted` (Boolean) Whether this workflow is hidden from other members of the account in the bem
+web app. When true, only account owners and admins and explicitly granted
+users see the workflow and its calls, outputs, and errors in the app. This
+is a UI-visibility control: API keys are not scoped to workflows, so an
+environment API key still reads a restricted workflow and its data.
 - `tags` (List of String) Tags associated with the workflow.
 - `updated_at` (String) The date and time the workflow was last updated.
 - `version_num` (Number) Version number of this workflow version.

@@ -38,7 +38,9 @@ bem workflows call --workflow-name my-workflow \
 data "bem_workflows" "example_workflows" {
   display_name = "displayName"
   function_ids = ["string"]
+  function_id_version_nums = ["string"]
   function_names = ["string"]
+  function_name_version_nums = ["string"]
   tags = ["string"]
   workflow_ids = ["string"]
   workflow_names = ["string"]
@@ -51,7 +53,13 @@ data "bem_workflows" "example_workflows" {
 ### Optional
 
 - `display_name` (String)
+- `function_id_version_nums` (List of String) Return only workflows with a node pinned to a specific function
+version. Each entry is `<functionID>.<versionNum>` — for example
+`fn_2c9AXIj48cUYJtCuv1gsQtHGDzK.4`.
 - `function_ids` (List of String)
+- `function_name_version_nums` (List of String) Return only workflows with a node pinned to a specific function
+version, keyed by function name. Each entry is
+`<functionName>.<versionNum>` — for example `invoice-extract.4`.
 - `function_names` (List of String)
 - `max_items` (Number) Max items to fetch, default: 1000
 - `sort_order` (String) Available values: "asc", "desc".
@@ -80,6 +88,11 @@ not part of version history. (see [below for nested schema](#nestedatt--items--c
 - `main_node_name` (String) Name of the entry-point call-site node.
 - `name` (String) Unique name of the workflow within the environment.
 - `nodes` (Attributes List) All call-site nodes in this workflow version's DAG. (see [below for nested schema](#nestedatt--items--nodes))
+- `restricted` (Boolean) Whether this workflow is hidden from other members of the account in the bem
+web app. When true, only account owners and admins and explicitly granted
+users see the workflow and its calls, outputs, and errors in the app. This
+is a UI-visibility control: API keys are not scoped to workflows, so an
+environment API key still reads a restricted workflow and its data.
 - `tags` (List of String) Tags associated with the workflow.
 - `updated_at` (String) The date and time the workflow was last updated.
 - `version_num` (Number) Version number of this workflow version.

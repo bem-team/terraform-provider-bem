@@ -543,7 +543,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 												Computed:    true,
 											},
 											"headers": schema.StringAttribute{
-												Description: "Additional HTTP headers to include in every request (e.g. `Authorization: Bearer <token>`).",
+												Description: "Additional HTTP headers to include in every request, as a JSON object mapping header name to value. In HCL use `jsonencode({ Authorization = \"Bearer <token>\" })` - a raw header line such as `Authorization: Bearer <token>` is rejected at plan time as invalid JSON.",
 												Computed:    true,
 												CustomType:  jsontypes.NormalizedType{},
 											},

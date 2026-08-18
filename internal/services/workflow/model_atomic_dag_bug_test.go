@@ -61,17 +61,17 @@ func TestWorkflowModel_DAGFieldsCarryAtomicGroupTag(t *testing.T) {
 // edges are identical in plan and state - JSON Merge Patch's per-field
 // diffing correctly omits them on its own, which is exactly what produced
 // the bem API's 400 ("mainNodeName, nodes, and edges must all be provided
-// together when updating the workflow DAG") in opto's real apply
-// (Simons-Example-for-Terraform / extract_schedule_of_investments).
+// together when updating the workflow DAG") in the practitioner report that
+// opened BEM-1392.
 func bem1392Fixture() (plan, state WorkflowModel) {
 	state = WorkflowModel{
-		Name:         types.StringValue("Simons-Example-for-Terraform"),
-		MainNodeName: types.StringValue("node_egld75q"),
+		Name:         types.StringValue("example-workflow"),
+		MainNodeName: types.StringValue("node_one"),
 		Nodes: &[]*WorkflowNodesModel{
 			{
-				Name: types.StringValue("node_egld75q"),
+				Name: types.StringValue("node_one"),
 				Function: &WorkflowNodesFunctionModel{
-					Name:       types.StringValue("Extract-schedule-of-investments"),
+					Name:       types.StringValue("example-extractor"),
 					VersionNum: types.Int64Value(2),
 				},
 			},
@@ -80,13 +80,13 @@ func bem1392Fixture() (plan, state WorkflowModel) {
 	}
 
 	plan = WorkflowModel{
-		Name:         types.StringValue("Simons-Example-for-Terraform"),
-		MainNodeName: types.StringValue("node_egld75q"), // unchanged
+		Name:         types.StringValue("example-workflow"),
+		MainNodeName: types.StringValue("node_one"), // unchanged
 		Nodes: &[]*WorkflowNodesModel{
 			{
-				Name: types.StringValue("node_egld75q"),
+				Name: types.StringValue("node_one"),
 				Function: &WorkflowNodesFunctionModel{
-					Name:       types.StringValue("Extract-schedule-of-investments"),
+					Name:       types.StringValue("example-extractor"),
 					VersionNum: types.Int64Value(3), // changed - the only real diff
 				},
 			},
@@ -96,8 +96,8 @@ func bem1392Fixture() (plan, state WorkflowModel) {
 	return plan, state
 }
 
-// Pre-fix, this produced exactly opto's captured PATCH body -
-// {"nodes":[{"function":{"name":"Extract-schedule-of-investments","versionNum":3},"name":"node_egld75q"}]}
+// Pre-fix, this produced exactly the PATCH body captured from that report -
+// {"nodes":[{"function":{"name":"example-extractor","versionNum":3},"name":"node_one"}]}
 // - missing mainNodeName and edges, which the bem API rejects. Post-fix,
 // atomic_group=dag on WorkflowModel's MainNodeName/Nodes/Edges forces all
 // three into the body together whenever any one of them changes.
@@ -109,7 +109,7 @@ func TestMarshalJSONForUpdate_NodeVersionBumpSendsFullDAG(t *testing.T) {
 		t.Fatalf("MarshalJSONForUpdate failed: %v", err)
 	}
 
-	want := `{"nodes":[{"function":{"name":"Extract-schedule-of-investments","versionNum":3},"name":"node_egld75q"}],"edges":[],"mainNodeName":"node_egld75q"}`
+	want := `{"nodes":[{"function":{"name":"example-extractor","versionNum":3},"name":"node_one"}],"edges":[],"mainNodeName":"node_one"}`
 	t.Logf("got:  %s", string(got))
 	t.Logf("want: %s", want)
 
@@ -118,9 +118,9 @@ func TestMarshalJSONForUpdate_NodeVersionBumpSendsFullDAG(t *testing.T) {
 	}
 }
 
-// Reproduces the gap the first version of this fix missed, caught against
-// the real bem-customer component in stg-ue1-sr-0001: a single-node
-// workflow whose main.tf never sets `edges` at all, so Edges is a genuine
+// Reproduces the gap the first version of this fix missed, caught live against
+// a staging environment: a single-node
+// workflow whose configuration never sets `edges` at all, so Edges is a genuine
 // nil pointer in both plan and state - not an unchanged-but-present empty
 // slice like bem1392Fixture uses. mainNodeName made it into the patch body
 // correctly; edges didn't, because a nil-in-both-sides pointer has nothing
@@ -130,13 +130,13 @@ func TestMarshalJSONForUpdate_NodeVersionBumpSendsFullDAG(t *testing.T) {
 // - edges silently missing, same 400.
 func TestMarshalJSONForUpdate_NeverConfiguredEdges_SendsEmptyArray(t *testing.T) {
 	state := WorkflowModel{
-		Name:         types.StringValue("bem-customer-test-workflow"),
+		Name:         types.StringValue("single-node-workflow"),
 		MainNodeName: types.StringValue("splitter"),
 		Nodes: &[]*WorkflowNodesModel{
 			{
 				Name: types.StringValue("splitter"),
 				Function: &WorkflowNodesFunctionModel{
-					ID: types.StringValue("f_3HQ4EVFvmjO1gfZYWtHJ3fAqn4u"),
+					ID: types.StringValue("f_exampleFunctionID"),
 				},
 			},
 		},
@@ -144,13 +144,13 @@ func TestMarshalJSONForUpdate_NeverConfiguredEdges_SendsEmptyArray(t *testing.T)
 	}
 
 	plan := WorkflowModel{
-		Name:         types.StringValue("bem-customer-test-workflow"),
+		Name:         types.StringValue("single-node-workflow"),
 		MainNodeName: types.StringValue("splitter"),
 		Nodes: &[]*WorkflowNodesModel{
 			{
 				Name: types.StringValue("splitter"),
 				Function: &WorkflowNodesFunctionModel{
-					ID:         types.StringValue("f_3HQ4EVFvmjO1gfZYWtHJ3fAqn4u"),
+					ID:         types.StringValue("f_exampleFunctionID"),
 					VersionNum: types.Int64Value(3),
 				},
 			},
@@ -163,7 +163,7 @@ func TestMarshalJSONForUpdate_NeverConfiguredEdges_SendsEmptyArray(t *testing.T)
 		t.Fatalf("MarshalJSONForUpdate failed: %v", err)
 	}
 
-	want := `{"nodes":[{"function":{"id":"f_3HQ4EVFvmjO1gfZYWtHJ3fAqn4u","versionNum":3},"name":"splitter"}],"edges":[],"mainNodeName":"splitter"}`
+	want := `{"nodes":[{"function":{"id":"f_exampleFunctionID","versionNum":3},"name":"splitter"}],"edges":[],"mainNodeName":"splitter"}`
 	t.Logf("got:  %s", string(got))
 	t.Logf("want: %s", want)
 
@@ -179,15 +179,15 @@ func TestMarshalJSONForUpdate_NeverConfiguredEdges_SendsEmptyArray(t *testing.T)
 func TestMarshalJSONForUpdate_MetadataOnlyChange_OmitsDAGFields(t *testing.T) {
 	plan, state := bem1392Fixture()
 	(*plan.Nodes)[0].Function.VersionNum = types.Int64Value(2) // DAG identical
-	state.DisplayName = types.StringValue("Simon's Example")
-	plan.DisplayName = types.StringValue("Simon's Example (Managed by Terraform)")
+	state.DisplayName = types.StringValue("Example Workflow")
+	plan.DisplayName = types.StringValue("Example Workflow (Managed by Terraform)")
 
 	got, err := plan.MarshalJSONForUpdate(state)
 	if err != nil {
 		t.Fatalf("MarshalJSONForUpdate failed: %v", err)
 	}
 
-	want := `{"displayName":"Simon's Example (Managed by Terraform)"}`
+	want := `{"displayName":"Example Workflow (Managed by Terraform)"}`
 	if string(got) != want {
 		t.Errorf("a metadata-only edit must not send the DAG fields.\ngot:  %s\nwant: %s", string(got), want)
 	}
@@ -206,7 +206,7 @@ func TestMarshalJSONForUpdate_MainNodeNameChangeSendsFullDAG(t *testing.T) {
 		t.Fatalf("MarshalJSONForUpdate failed: %v", err)
 	}
 
-	want := `{"mainNodeName":"node_replacement","edges":[],"nodes":[{"function":{"name":"Extract-schedule-of-investments","versionNum":2},"name":"node_egld75q"}]}`
+	want := `{"mainNodeName":"node_replacement","edges":[],"nodes":[{"function":{"name":"example-extractor","versionNum":2},"name":"node_one"}]}`
 	if string(got) != want {
 		t.Errorf("a mainNodeName-only change must send the whole DAG.\ngot:  %s\nwant: %s", string(got), want)
 	}
@@ -221,7 +221,7 @@ func TestMarshalJSONForUpdate_MainNodeNameChangeSendsFullDAG(t *testing.T) {
 func TestMarshalJSONForUpdate_ClearedEdges_SendsEmptyArrayNotNull(t *testing.T) {
 	plan, state := bem1392Fixture()
 	state.Edges = &[]*WorkflowEdgesModel{
-		{SourceNodeName: types.StringValue("node_egld75q")},
+		{SourceNodeName: types.StringValue("node_one")},
 	}
 	plan.Edges = nil // `edges` removed from HCL
 
@@ -230,7 +230,7 @@ func TestMarshalJSONForUpdate_ClearedEdges_SendsEmptyArrayNotNull(t *testing.T) 
 		t.Fatalf("MarshalJSONForUpdate failed: %v", err)
 	}
 
-	want := `{"edges":[],"nodes":[{"function":{"name":"Extract-schedule-of-investments","versionNum":3},"name":"node_egld75q"}],"mainNodeName":"node_egld75q"}`
+	want := `{"edges":[],"nodes":[{"function":{"name":"example-extractor","versionNum":3},"name":"node_one"}],"mainNodeName":"node_one"}`
 	if string(got) != want {
 		t.Errorf("cleared edges must serialize as [] so the API sees all three DAG fields.\ngot:  %s\nwant: %s", string(got), want)
 	}
@@ -242,13 +242,13 @@ func TestMarshalJSONForUpdate_ClearedEdges_SendsEmptyArrayNotNull(t *testing.T) 
 // this fix - no injected "edges":[].
 func TestMarshalJSON_Create_LeavesNeverConfiguredEdgesAbsent(t *testing.T) {
 	m := WorkflowModel{
-		Name:         types.StringValue("bem-customer-test-workflow"),
+		Name:         types.StringValue("single-node-workflow"),
 		MainNodeName: types.StringValue("splitter"),
 		Nodes: &[]*WorkflowNodesModel{
 			{
 				Name: types.StringValue("splitter"),
 				Function: &WorkflowNodesFunctionModel{
-					ID: types.StringValue("f_3HQ4EVFvmjO1gfZYWtHJ3fAqn4u"),
+					ID: types.StringValue("f_exampleFunctionID"),
 				},
 			},
 		},
@@ -260,7 +260,7 @@ func TestMarshalJSON_Create_LeavesNeverConfiguredEdgesAbsent(t *testing.T) {
 		t.Fatalf("MarshalJSON failed: %v", err)
 	}
 
-	want := `{"mainNodeName":"splitter","name":"bem-customer-test-workflow","nodes":[{"function":{"id":"f_3HQ4EVFvmjO1gfZYWtHJ3fAqn4u"},"name":"splitter"}]}`
+	want := `{"mainNodeName":"splitter","name":"single-node-workflow","nodes":[{"function":{"id":"f_exampleFunctionID"},"name":"splitter"}]}`
 	if string(got) != want {
 		t.Errorf("the create path must be unaffected by atomic_group.\ngot:  %s\nwant: %s", string(got), want)
 	}

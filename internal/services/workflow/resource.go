@@ -129,7 +129,21 @@ func (r *WorkflowResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	err = apijson.UnmarshalComputed(bytes, &data)
+	// The API wraps its response as {"workflow": {...}}, so it has to be
+	// decoded through the envelope - exactly as Create, Read and ImportState
+	// already do. Decoding straight into the model instead makes the response's
+	// "workflow" key land on WorkflowModel.Workflow (the computed nested
+	// attribute, which also claims json:"workflow") and leaves every top-level
+	// computed attribute - version_num, created_at, updated_at, email_address,
+	// restricted, audit - at null, because their keys live one level down
+	// inside the envelope.
+	//
+	// The two paths therefore populated disjoint halves of the model, and each
+	// apply flipped which half was set: Create wrote the top-level attributes,
+	// Update nulled them and wrote the nested object, so the next plan saw
+	// nulls and proposed another update, forever. Confirmed against a real
+	// response - the inner object has no nested "workflow" key of its own.
+	err = hydrateWorkflowResponse(bytes, data, apijson.UnmarshalComputed)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
@@ -165,13 +179,19 @@ func (r *WorkflowResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	env := WorkflowWorkflowEnvelope{*data}
-	err = apijson.Unmarshal(bytes, &env)
+	// Two passes, same as Create and Update. An envelope-only decode refreshes
+	// the top-level attributes and nulls the read-only `workflow` mirror, because
+	// the mirror is tagged json:"workflow" and so matches the wrapper the envelope
+	// consumes. Read runs on every plan, so that made the mirror null in state
+	// almost all of the time - it survived only until the next refresh - and
+	// configurations read workflow.version_num from it. Caught by
+	// TestAccWorkflowResource_ImportThenUpdate's ImportStateCheck, since
+	// `terraform import` performs a refresh immediately after ImportState.
+	err = hydrateWorkflowResponse(bytes, data, apijson.Unmarshal)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
-	data = &env.Workflow
 	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -228,18 +248,73 @@ func (r *WorkflowResource) ImportState(ctx context.Context, req resource.ImportS
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	env := WorkflowWorkflowEnvelope{*data}
-	err = apijson.Unmarshal(bytes, &env)
+	// UnmarshalForImport, not Unmarshal: import has no prior state, so the
+	// no_refresh skip that protects Read from server-side normalisation instead
+	// leaves nearly every writable attribute null. See UnmarshalForImport.
+	//
+	// Via hydrateWorkflowResponse rather than the envelope alone, so the
+	// read-only `workflow` mirror is populated too - an envelope-only decode
+	// leaves it null, and configurations read workflow.version_num from it.
+	err = hydrateWorkflowResponse(bytes, data, apijson.UnmarshalForImport)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
-	data = &env.Workflow
+	// The import ID is authoritative for the identifier, whatever the response
+	// carried.
+	data.Name = types.StringValue(path)
 	data.ID = data.Name
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *WorkflowResource) ModifyPlan(_ context.Context, _ resource.ModifyPlanRequest, _ *resource.ModifyPlanResponse) {
+func (r *WorkflowResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Destroy plan: nothing to modify.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	// Create plan: everything is new, nothing to preserve.
+	if req.State.Raw.IsNull() {
+		return
+	}
 
+	// Same treatment as bem_function - see collapseNoOpPlan in
+	// function/noop_plan.go for the full explanation. bem_workflow has the same
+	// shape of exposure: `workflow` and `audit` are Computed-only nested
+	// attributes that core proposes as null, so a plan touching nothing
+	// configured still wants an update.
+	//
+	// The guard is what keeps a real update working: when a referenced
+	// function's id or version_num is unknown because that function is
+	// changing, `nodes` differs from state and the plan is left alone, so
+	// BEM-1392's DAG propagation is unaffected.
+	rschema := ResourceSchema(ctx)
+
+	preserved, err := preserveServerDefaults(ctx, rschema, req.Config, resp.Plan, req.State)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Modifying Planned State",
+			"Could not preserve server-assigned defaults for optional attributes. "+
+				"This is always a problem with the provider; please report it:\n\n"+err.Error(),
+		)
+		return
+	}
+	resp.Plan.Raw = preserved
+
+	// Float64 plan values are quantised by the framework while prior state
+	// carries the exact decimal from the API, so an untouched score_threshold
+	// reads as changed. Adopt state's representation where the two agree at
+	// float64 precision. Root cause of BEM-1396 finding 2.
+	normalized, err := normalizeNumberRepresentation(ctx, resp.Plan.Raw, req.State.Raw)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Modifying Planned State",
+			"Could not normalise numeric plan values. This is always a problem with the "+
+				"provider; please report it:\n\n"+err.Error(),
+		)
+		return
+	}
+	resp.Plan.Raw = normalized
+
+	resp.Diagnostics.Append(collapseNoOpPlan(ctx, rschema, resp.Plan, req.State, &resp.Plan)...)
 }

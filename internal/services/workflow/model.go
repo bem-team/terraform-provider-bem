@@ -3,11 +3,15 @@
 package workflow
 
 import (
+	"fmt"
+
 	"github.com/bem-team/terraform-provider-bem/internal/apijson"
 	"github.com/bem-team/terraform-provider-bem/internal/customfield"
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type WorkflowWorkflowEnvelope struct {
@@ -27,7 +31,7 @@ type WorkflowModel struct {
 	Nodes           *[]*WorkflowNodesModel                                     `tfsdk:"nodes" json:"nodes,required,no_refresh,atomic_group=dag"`
 	DisplayName     types.String                                               `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
 	Tags            *[]types.String                                            `tfsdk:"tags" json:"tags,optional,no_refresh"`
-	Connectors      *[]*WorkflowConnectorsModel                                `tfsdk:"connectors" json:"connectors,optional,no_refresh"`
+	Connectors      customfield.NestedObjectList[WorkflowConnectorsModel]      `tfsdk:"connectors" json:"connectors,computed_optional,no_refresh"`
 	Edges           *[]*WorkflowEdgesModel                                     `tfsdk:"edges" json:"edges,optional,no_refresh,atomic_group=dag"`
 	CreatedAt       timetypes.RFC3339                                          `tfsdk:"created_at" json:"createdAt,computed,no_refresh" format:"date-time"`
 	EmailAddress    types.String                                               `tfsdk:"email_address" json:"emailAddress,computed,no_refresh"`
@@ -45,7 +49,50 @@ func (m WorkflowModel) MarshalJSON() (data []byte, err error) {
 }
 
 func (m WorkflowModel) MarshalJSONForUpdate(state WorkflowModel) (data []byte, err error) {
-	return apijson.MarshalForPatch(m, state)
+	data, err = apijson.MarshalForPatch(m, state)
+	if err != nil {
+		return nil, err
+	}
+	return dropRedundantNodeFunctionID(data)
+}
+
+// dropRedundantNodeFunctionID removes a node's function.id when function.name is
+// also present, because the API accepts exactly one:
+//
+//	400 node 0 function is invalid: function identifier must have either an ID or
+//	    a name, but not both
+//
+// Both can be present without the practitioner asking for it. `id` is
+// computed_optional, so a configuration referencing a function by name leaves it
+// null, the response decode fills it in, and preserveServerDefaults then preserves
+// it into the plan alongside the configured name - this provider's own plan pass is
+// part of the trigger. Any DAG edit re-sends the whole node through
+// atomic_group=dag, with both keys, and the update fails.
+//
+// Confirmed against the API rather than inferred: name alone 200, id alone 200, both
+// 400. Note the reverse case is safe without help - `name` is plain Optional, not
+// Computed, so for an id-based configuration the plan resets it to the config's null
+// and only `id` is ever sent.
+//
+// `name` wins because it is the half a name-based configuration set, and it is not
+// filled in from a response for an id-based one - so whichever the practitioner
+// chose is the one that survives.
+func dropRedundantNodeFunctionID(data []byte) ([]byte, error) {
+	nodes := gjson.GetBytes(data, "nodes")
+	if !nodes.IsArray() {
+		return data, nil
+	}
+
+	var err error
+	nodes.ForEach(func(index, node gjson.Result) bool {
+		fn := node.Get("function")
+		if !fn.Exists() || !fn.Get("name").Exists() || !fn.Get("id").Exists() {
+			return true
+		}
+		data, err = sjson.DeleteBytes(data, fmt.Sprintf("nodes.%d.function.id", index.Int()))
+		return err == nil
+	})
+	return data, err
 }
 
 type WorkflowNodesModel struct {
@@ -55,9 +102,9 @@ type WorkflowNodesModel struct {
 }
 
 type WorkflowNodesFunctionModel struct {
-	ID         types.String `tfsdk:"id" json:"id,optional"`
+	ID         types.String `tfsdk:"id" json:"id,computed_optional"`
 	Name       types.String `tfsdk:"name" json:"name,optional"`
-	VersionNum types.Int64  `tfsdk:"version_num" json:"versionNum,optional"`
+	VersionNum types.Int64  `tfsdk:"version_num" json:"versionNum,computed_optional"`
 }
 
 type WorkflowConnectorsModel struct {
