@@ -82,7 +82,10 @@ func (r *FunctionResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	err = apijson.UnmarshalComputed(bytes, &data)
+	// Two passes - see hydrateFromResponse in envelope.go. Decoding straight
+	// into the model leaves `config` unhydrated, which is what produced a
+	// perpetual in-place update on enrich functions.
+	err = hydrateFromResponse(bytes, data, apijson.UnmarshalComputed)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
@@ -130,7 +133,10 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	err = apijson.UnmarshalComputed(bytes, &data)
+	// Two passes - see hydrateFromResponse in envelope.go. Decoding straight
+	// into the model leaves `config` unhydrated, which is what produced a
+	// perpetual in-place update on enrich functions.
+	err = hydrateFromResponse(bytes, data, apijson.UnmarshalComputed)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
@@ -153,7 +159,7 @@ func (r *FunctionResource) Read(ctx context.Context, req resource.ReadRequest, r
 	_, err := r.client.Functions.Get(
 		ctx,
 		data.FunctionName.ValueString(),
-		bem.FunctionGetParams{},
+		functionGetParams(),
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
 	)
@@ -219,6 +225,10 @@ func (r *FunctionResource) ImportState(ctx context.Context, req resource.ImportS
 	_, err := r.client.Functions.Get(
 		ctx,
 		path,
+		// Deliberately NOT functionGetParams(): see the comment there. Requesting
+		// extraConfig on the import path hydrates it into state as a non-null
+		// object, against a configuration that leaves it unset - and it is plain
+		// Optional, so nothing can reconcile that.
 		bem.FunctionGetParams{},
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),
@@ -228,11 +238,22 @@ func (r *FunctionResource) ImportState(ctx context.Context, req resource.ImportS
 		return
 	}
 	bytes, _ := io.ReadAll(res.Body)
-	err = apijson.Unmarshal(bytes, &data)
+	// UnmarshalForImport, not Unmarshal: import has no prior state, so the
+	// no_refresh skip that protects Read from server-side normalisation instead
+	// leaves nearly every writable attribute null. See UnmarshalForImport.
+	//
+	// It must go through the envelope. Once no_refresh fields are no longer
+	// skipped, a direct decode actively *nulls* them, because their keys live
+	// under the response's "function" wrapper rather than at the root - which
+	// broke import outright with "missing required functionName parameter".
+	err = hydrateFromResponse(bytes, data, apijson.UnmarshalForImport)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+	// The import ID is authoritative for the identifier, whatever the response
+	// carried.
+	data.FunctionName = types.StringValue(path)
 	data.ID = data.FunctionName
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -263,4 +284,79 @@ func (r *FunctionResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 	if !plan.FunctionName.Equal(state.FunctionName) {
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), types.StringUnknown())...)
 	}
+
+	// BEM-1396 finding 2, in two passes that must run in this order.
+	//
+	// 1. Optional+Computed leaves the configuration omits (enrich's
+	//    config.steps[].top_k and friends) come back as null from core while
+	//    prior state holds the server's default, so `config` differs on every
+	//    plan. Restore prior state for those first.
+	// 2. Only then is it true that nothing configured changed, which lets the
+	//    no-op collapse deal with the purely-computed `function` mirror.
+	//
+	// Running the collapse first would find `config` differing and correctly
+	// decline, which is exactly what happened before this pass existed.
+	rschema := ResourceSchema(ctx)
+
+	preserved, err := preserveServerDefaults(ctx, rschema, req.Config, resp.Plan, req.State)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Modifying Planned State",
+			"Could not preserve server-assigned defaults for optional attributes. "+
+				"This is always a problem with the provider; please report it:\n\n"+err.Error(),
+		)
+		return
+	}
+	resp.Plan.Raw = preserved
+
+	// Float64 plan values are quantised by the framework while prior state
+	// carries the exact decimal from the API, so an untouched score_threshold
+	// reads as changed. Adopt state's representation where the two agree at
+	// float64 precision. Root cause of BEM-1396 finding 2.
+	normalized, err := normalizeNumberRepresentation(ctx, resp.Plan.Raw, req.State.Raw)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Modifying Planned State",
+			"Could not normalise numeric plan values. This is always a problem with the "+
+				"provider; please report it:\n\n"+err.Error(),
+		)
+		return
+	}
+	resp.Plan.Raw = normalized
+
+	resp.Diagnostics.Append(collapseNoOpPlan(ctx, rschema, resp.Plan, req.State, &resp.Plan)...)
+}
+
+// functionGetParams is the query for Read, and ONLY for Read.
+//
+// extraConfig is gated server-side: the API omits it unless
+// includeExtraSettings=true is requested. Passing the empty FunctionGetParams
+// that codegen emits therefore left the read-only `function.extra_config`
+// mirror null on every single plan, for every practitioner - the mirror is
+// plain `computed`, so Read does refresh it. Requesting the flag here fixes
+// that, and cannot disturb top-level `extra_config`, which is no_refresh and so
+// skipped on refresh.
+//
+// ImportState must NOT use this. It decodes with UnmarshalForImport, which
+// deliberately hydrates no_refresh attributes, so requesting extraConfig there
+// writes a non-null object into state:
+//
+//	state: extra_config = {enable_bounding_boxes: null}
+//	plan:  - extra_config = {} -> null
+//
+// against a configuration that leaves the attribute unset. `extra_config` is
+// plain Optional, so preserveServerDefaults cannot absorb it and core will not
+// accept a planned non-null value for it either - the plan stays dirty forever.
+// That regressed ten of eleven consumer fixtures on build 16:25; only the one
+// that sets extra_config improved. Import leaving it null is the lesser evil
+// until extra_config is Optional+Computed (see the audit test).
+//
+// The parameter only became expressible in bem-go-sdk 0.28.0; before that
+// Functions.Get took no params at all.
+//
+// Kept as a function rather than inlined because resource.go carries the
+// codegen header: a regen reverts the call site to bem.FunctionGetParams{},
+// and TestFunctionGetParams_RequestsExtraConfig then fails loudly.
+func functionGetParams() bem.FunctionGetParams {
+	return bem.FunctionGetParams{IncludeExtraSettings: bem.Bool(true)}
 }

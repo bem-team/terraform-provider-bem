@@ -60,7 +60,13 @@ data "bem_workflow" "example_workflow" {
 Optional:
 
 - `display_name` (String)
+- `function_id_version_nums` (List of String) Return only workflows with a node pinned to a specific function
+version. Each entry is `<functionID>.<versionNum>` — for example
+`fn_2c9AXIj48cUYJtCuv1gsQtHGDzK.4`.
 - `function_ids` (List of String)
+- `function_name_version_nums` (List of String) Return only workflows with a node pinned to a specific function
+version, keyed by function name. Each entry is
+`<functionName>.<versionNum>` — for example `invoice-extract.4`.
 - `function_names` (List of String)
 - `sort_order` (String) Available values: "asc", "desc".
 - `tags` (List of String)
@@ -85,6 +91,11 @@ not part of version history. (see [below for nested schema](#nestedatt--workflow
 - `main_node_name` (String) Name of the entry-point call-site node.
 - `name` (String) Unique name of the workflow within the environment.
 - `nodes` (Attributes List) All call-site nodes in this workflow version's DAG. (see [below for nested schema](#nestedatt--workflow--nodes))
+- `restricted` (Boolean) Whether this workflow is hidden from other members of the account in the bem
+web app. When true, only account owners and admins and explicitly granted
+users see the workflow and its calls, outputs, and errors in the app. This
+is a UI-visibility control: API keys are not scoped to workflows, so an
+environment API key still reads a restricted workflow and its data.
 - `tags` (List of String) Tags associated with the workflow.
 - `updated_at` (String) The date and time the workflow was last updated.
 - `version_num` (Number) Version number of this workflow version.

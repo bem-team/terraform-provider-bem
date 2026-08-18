@@ -176,6 +176,37 @@ resource "bem_workflow" "test" {
 `, workflowName, functionName, quoted)
 }
 
+// testAccWorkflowConfigWithNodeMetadata is testAccWorkflowConfig plus node
+// metadata, which is the cheapest way to make a DAG change: `metadata` is part of
+// the node object, so editing it puts `nodes` in the patch body and
+// atomic_group=dag then carries mainNodeName and edges along with it.
+//
+// The node still references its function **by name only**, which is the shape that
+// matters - see TestAccWorkflowResource_ImportThenDAGEdit.
+func testAccWorkflowConfigWithNodeMetadata(workflowName, functionName, metadata string) string {
+	return fmt.Sprintf(`
+provider "bem" {}
+
+resource "bem_workflow" "test" {
+  name           = %[1]q
+  display_name   = "TF Acc Test Workflow"
+  main_node_name = "main"
+  tags           = ["bem-acc-test"]
+  edges          = []
+
+  nodes = [
+    {
+      name     = "main"
+      metadata = jsonencode(%[3]s)
+      function = {
+        name = %[2]q
+      }
+    }
+  ]
+}
+`, workflowName, functionName, metadata)
+}
+
 func testAccCheckWorkflowDestroy(s *terraform.State) error {
 	client := testAccBemClient()
 	ctx := context.Background()
@@ -251,8 +282,8 @@ func testAccCheckWorkflowNodeFunctionIntact(workflowName, expectedFunctionName s
 //     that's the known, separate, NOT-fixed-by-BEM-1367 ImportState gap
 //     (Finding 1's "defect B" / the doc's "Importing an existing resource
 //     leaves most attributes null" section). This test does not use the
-//     `ignore_changes = [nodes, edges]` lifecycle workaround the
-//     bem-workflows Atmos component uses, so it isn't exercising the
+//     `ignore_changes = [nodes, edges]` lifecycle workaround that
+//     for_each-driven configurations often carry, so it isn't exercising the
 //     separate ignore_changes interaction (Finding 4) - just the core
 //     encoder correctness this ticket actually fixes.
 //
@@ -293,12 +324,17 @@ func TestAccWorkflowResource_ImportThenUpdate(t *testing.T) {
 				ImportState:        true,
 				ImportStateId:      workflowName,
 				ImportStatePersist: true,
+				ImportStateCheck:   checkWorkflowImportHydratesWritableAttributes,
 			},
 			{
-				// Re-apply the same config against the under-hydrated
-				// imported state - see point 2 above. Expect a real diff
-				// here (not an empty plan) - that's the known, separate
-				// ImportState gap, not this test failing.
+				// Post-import plan-is-empty: what a practitioner actually hits.
+				// An imported workflow that already matches its configuration must
+				// plan clean, otherwise every apply cuts a new workflow version.
+				Config:   testAccWorkflowConfig(workflowName, functionName, "bem-acc-test"),
+				PlanOnly: true,
+			},
+			{
+				// Re-apply the same config against the imported state.
 				Config: testAccWorkflowConfig(workflowName, functionName, "bem-acc-test"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("bem_workflow.test", "name", workflowName),
@@ -314,6 +350,119 @@ func TestAccWorkflowResource_ImportThenUpdate(t *testing.T) {
 				Config: testAccWorkflowConfig(workflowName, functionName, "bem-acc-test", "bem-acc-test-2"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("bem_workflow.test", "tags.#", "2"),
+					resource.TestCheckResourceAttr("bem_workflow.test", "nodes.#", "1"),
+					testAccCheckWorkflowNodeFunctionIntact(workflowName, functionName),
+				),
+			},
+		},
+	})
+}
+
+// checkWorkflowImportHydratesWritableAttributes is the bem_workflow counterpart
+// to the bem_function check.
+//
+// bem_workflow's import had two problems, both fixed in BEM-1396: it skipped
+// every no_refresh attribute (so almost nothing landed in state), and it decoded
+// through the envelope only, leaving the read-only `workflow` mirror null.
+//
+// main_node_name is the sharpest of these. It is Required, so a null there breaks
+// `plan -generate-config-out` outright, and nodes/edges being null after import is
+// what collides with the consumer runbook's `ignore_changes = [nodes, edges]`
+// guard - with the graph absent from state and ignored at plan time, there is
+// nothing to converge it.
+func checkWorkflowImportHydratesWritableAttributes(states []*terraform.InstanceState) error {
+	if len(states) != 1 {
+		return fmt.Errorf("expected 1 state after import, got %d", len(states))
+	}
+	attrs := states[0].Attributes
+
+	for key, expected := range map[string]string{
+		"display_name":   "TF Acc Test Workflow",
+		"main_node_name": "main",
+		"nodes.#":        "1",
+		"tags.#":         "1",
+	} {
+		got, ok := attrs[key]
+		if !ok || got == "" {
+			return fmt.Errorf("after import, %s is absent from state. It is no_refresh, so "+
+				"nothing but the import populates it - and nodes/edges being null here is what "+
+				"breaks a workflow carrying ignore_changes = [nodes, edges]", key)
+		}
+		if got != expected {
+			return fmt.Errorf("after import, %s = %q, want %q", key, got, expected)
+		}
+	}
+
+	if attrs["workflow.version_num"] == "" {
+		return fmt.Errorf("after import, the `workflow` mirror is not populated; an envelope-only " +
+			"decode leaves it null and configurations read workflow.version_num from it")
+	}
+	return nil
+}
+
+// TestAccWorkflowResource_ImportThenDAGEdit covers the one path that sends a node
+// function's identifier twice, which the API rejects:
+//
+//	400 node 0 function is invalid: function identifier must have either an ID or
+//	    a name, but not both
+//
+// It needs all three of these together, which is why nothing caught it:
+//
+//  1. the node references its function **by name**, so `id` is null in the
+//     configuration;
+//  2. the workflow was **imported**, so ImportState hydrated `nodes[].function.id`
+//     into state - a Terraform-created workflow appears not to, which is why
+//     TestAccWorkflowResource_FunctionVersionBumpUpdatesDAG passed throughout;
+//  3. a subsequent **DAG edit**, which re-sends the whole node through
+//     atomic_group=dag, now carrying the hydrated id alongside the configured name.
+//
+// Verified against the API directly: `name` alone and `id` alone are both accepted,
+// both together are a 400. So this exercises the provider's splice and the API
+// contract it depends on at the same time - if the API ever starts requiring both,
+// or rejecting a name-only DAG, this fails rather than a practitioner's apply.
+func TestAccWorkflowResource_ImportThenDAGEdit(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
+	testAccPreCheck(t)
+
+	workflowName := acctest.RandomWithPrefix("tf-acc-bem-dag")
+	functionName := acctest.RandomWithPrefix("tf-acc-bem-dag-fn")
+
+	testAccCreateFunctionOutOfBand(t, functionName)
+	testAccCreateWorkflowOutOfBand(t, workflowName, functionName)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckWorkflowDestroy,
+		Steps: []resource.TestStep{
+			{
+				// Import, so nodes[].function.id lands in state.
+				ResourceName:       "bem_workflow.test",
+				Config:             testAccWorkflowConfigWithNodeMetadata(workflowName, functionName, `{ stage = "one" }`),
+				ImportState:        true,
+				ImportStateId:      workflowName,
+				ImportStatePersist: true,
+				ImportStateCheck: func(states []*terraform.InstanceState) error {
+					if len(states) != 1 {
+						return fmt.Errorf("expected 1 state after import, got %d", len(states))
+					}
+					if states[0].Attributes["nodes.0.function.id"] == "" {
+						return fmt.Errorf("nodes.0.function.id is not hydrated, so this test cannot " +
+							"exercise the both-identifiers path it exists for - re-check whether " +
+							"ImportState still populates it")
+					}
+					return nil
+				},
+			},
+			{
+				// Converge, so the next step's only change is the DAG.
+				Config: testAccWorkflowConfigWithNodeMetadata(workflowName, functionName, `{ stage = "one" }`),
+			},
+			{
+				// The DAG edit. Pre-fix this fails with the 400 above.
+				Config: testAccWorkflowConfigWithNodeMetadata(workflowName, functionName, `{ stage = "two" }`),
+				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("bem_workflow.test", "nodes.#", "1"),
 					testAccCheckWorkflowNodeFunctionIntact(workflowName, functionName),
 				),

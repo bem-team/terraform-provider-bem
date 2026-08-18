@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -15,23 +16,23 @@ type FunctionModel struct {
 	ID                      types.String                                    `tfsdk:"id" json:"-,computed"`
 	FunctionName            types.String                                    `tfsdk:"function_name" json:"functionName,required,no_refresh"`
 	Type                    types.String                                    `tfsdk:"type" json:"type,required,no_refresh"`
-	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`
-	DestinationType         types.String                                    `tfsdk:"destination_type" json:"destinationType,optional,no_refresh"`
+	Description             types.String                                    `tfsdk:"description" json:"description,computed_optional,no_refresh"`
+	DestinationType         types.String                                    `tfsdk:"destination_type" json:"destinationType,optional,no_refresh,full_replace"`
 	DisplayName             types.String                                    `tfsdk:"display_name" json:"displayName,optional,no_refresh"`
-	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,optional,no_refresh"`
-	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh"`
+	EnableBoundingBoxes     types.Bool                                      `tfsdk:"enable_bounding_boxes" json:"enableBoundingBoxes,computed_optional,no_refresh"`
+	GoogleDriveFolderID     types.String                                    `tfsdk:"google_drive_folder_id" json:"googleDriveFolderId,optional,no_refresh,full_replace"`
 	JoinType                types.String                                    `tfsdk:"join_type" json:"joinType,optional,no_refresh"`
 	NativeVisualInput       types.Bool                                      `tfsdk:"native_visual_input" json:"nativeVisualInput,optional,no_refresh"`
 	OutputSchemaName        types.String                                    `tfsdk:"output_schema_name" json:"outputSchemaName,optional,no_refresh"`
-	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,optional,no_refresh"`
-	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh"`
-	S3Prefix                types.String                                    `tfsdk:"s3_prefix" json:"s3Prefix,optional,no_refresh"`
-	ShapingSchema           types.String                                    `tfsdk:"shaping_schema" json:"shapingSchema,optional,no_refresh"`
+	PreCount                types.Bool                                      `tfsdk:"pre_count" json:"preCount,computed_optional,no_refresh"`
+	S3Bucket                types.String                                    `tfsdk:"s3_bucket" json:"s3Bucket,optional,no_refresh,full_replace"`
+	S3Prefix                types.String                                    `tfsdk:"s3_prefix" json:"s3Prefix,optional,no_refresh,full_replace"`
+	ShapingSchema           types.String                                    `tfsdk:"shaping_schema" json:"shapingSchema,optional,no_refresh,full_replace"`
 	SplitType               types.String                                    `tfsdk:"split_type" json:"splitType,optional,no_refresh"`
-	TabularChunkingEnabled  types.Bool                                      `tfsdk:"tabular_chunking_enabled" json:"tabularChunkingEnabled,optional,no_refresh"`
-	WebhookSigningEnabled   types.Bool                                      `tfsdk:"webhook_signing_enabled" json:"webhookSigningEnabled,optional,no_refresh"`
-	WebhookURL              types.String                                    `tfsdk:"webhook_url" json:"webhookUrl,optional,no_refresh"`
-	Tags                    *[]types.String                                 `tfsdk:"tags" json:"tags,optional,no_refresh"`
+	TabularChunkingEnabled  types.Bool                                      `tfsdk:"tabular_chunking_enabled" json:"tabularChunkingEnabled,computed_optional,no_refresh"`
+	WebhookSigningEnabled   types.Bool                                      `tfsdk:"webhook_signing_enabled" json:"webhookSigningEnabled,optional,no_refresh,full_replace"`
+	WebhookURL              types.String                                    `tfsdk:"webhook_url" json:"webhookUrl,optional,no_refresh,full_replace"`
+	Tags                    customfield.List[types.String]                  `tfsdk:"tags" json:"tags,computed_optional,no_refresh"`
 	Classifications         *[]*FunctionClassificationsModel                `tfsdk:"classifications" json:"classifications,optional,no_refresh"`
 	ExtraConfig             *FunctionExtraConfigModel                       `tfsdk:"extra_config" json:"extraConfig,optional,no_refresh"`
 	ParseConfig             *FunctionParseConfigModel                       `tfsdk:"parse_config" json:"parseConfig,optional,no_refresh"`
@@ -39,7 +40,7 @@ type FunctionModel struct {
 	RenderConfig            *FunctionRenderConfigModel                      `tfsdk:"render_config" json:"renderConfig,optional,no_refresh"`
 	SemanticPageSplitConfig *FunctionSemanticPageSplitConfigModel           `tfsdk:"semantic_page_split_config" json:"semanticPageSplitConfig,optional,no_refresh"`
 	OutputSchema            jsontypes.Normalized                            `tfsdk:"output_schema" json:"outputSchema,optional,no_refresh"`
-	Config                  customfield.NestedObject[FunctionConfigModel]   `tfsdk:"config" json:"config,computed_optional,no_refresh"`
+	Config                  customfield.NestedObject[FunctionConfigModel]   `tfsdk:"config" json:"config,computed_optional,no_refresh,full_replace"`
 	Function                customfield.NestedObject[FunctionFunctionModel] `tfsdk:"function" json:"function,computed"`
 }
 
@@ -52,7 +53,48 @@ func (m FunctionModel) MarshalJSONForUpdate(state FunctionModel) (data []byte, e
 	if err != nil {
 		return nil, err
 	}
-	return sjson.SetBytes(data, "functionName", m.FunctionName.ValueString())
+	data, err = sjson.SetBytes(data, "functionName", m.FunctionName.ValueString())
+	if err != nil {
+		return nil, err
+	}
+	return ensureOutputSchemaAccompaniesName(data, m)
+}
+
+// ensureOutputSchemaAccompaniesName adds outputSchema to a patch body that
+// carries outputSchemaName without it.
+//
+// The API's requirement here is one-directional. For analyze/extract/transform/
+// join, a body containing outputSchemaName but no outputSchema is rejected with
+// "output schema is required"; the reverse is fine, because the server
+// back-fills the name from the existing schema. JSON Merge Patch produces the
+// rejected shape whenever a practitioner edits only output_schema_name.
+//
+// Expressing this as an atomic_group was tried and reverted. A group is
+// symmetric, so it also forced the *name* whenever the schema changed - and when
+// the name was never configured, the encoder had nothing to send and returned a
+// hard error, leaving the resource permanently un-updatable. output_schema_name
+// is optional, so that is a legitimate configuration.
+//
+// full_replace on the schema was also rejected: it would re-send the whole
+// schema on every unrelated edit (a display_name change, say), creating a new
+// output-schema row each time and re-running server-side schema validation on a
+// value the practitioner did not touch.
+//
+// This splice fires only in the one case the API actually rejects.
+func ensureOutputSchemaAccompaniesName(data []byte, m FunctionModel) ([]byte, error) {
+	if !gjson.GetBytes(data, "outputSchemaName").Exists() {
+		return data, nil
+	}
+	if gjson.GetBytes(data, "outputSchema").Exists() {
+		return data, nil
+	}
+	if m.OutputSchema.IsNull() || m.OutputSchema.IsUnknown() {
+		// Nothing to send. The request may still be rejected, but that is the
+		// API answering a genuinely incomplete configuration rather than the
+		// provider failing to serialize.
+		return data, nil
+	}
+	return sjson.SetRawBytes(data, "outputSchema", []byte(m.OutputSchema.ValueString()))
 }
 
 type FunctionClassificationsModel struct {

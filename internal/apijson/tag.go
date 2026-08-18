@@ -39,6 +39,25 @@ type parsedStructTag struct {
 	// constraint) that JSON Merge Patch's per-field diffing can't express on
 	// its own.
 	atomicGroup string
+	// fullReplace marks a field the API treats as an indivisible block rather
+	// than something it will merge: whenever the field has a value, a patch must
+	// carry the whole thing, even if nothing inside it changed. Set via
+	// `full_replace` on the json tag.
+	//
+	// This is atomicGroup's counterpart one level up. atomicGroup keeps a set of
+	// *sibling* fields together; fullReplace keeps a *single* field's own
+	// subtree intact, for the case where the API validates the field against
+	// itself on every request and so rejects (or silently discards) a body that
+	// omits it. A field with no siblings to trigger it can't be expressed as a
+	// group, which is exactly the gap this fills.
+	//
+	// A field whose value is null or unset is still omitted - this forces
+	// completeness, not presence.
+	//
+	// NOTE: don't combine with atomicGroup on the same field. fullReplace
+	// encodes unconditionally, so the field would always look "changed" and
+	// would permanently trigger its group.
+	fullReplace bool
 }
 
 func parseJSONStructTag(field reflect.StructField) (tag parsedStructTag, ok bool) {
@@ -73,6 +92,8 @@ func parseJSONStructTag(field reflect.StructField) (tag parsedStructTag, ok bool
 			tag.encodeStateValueWhenPlanUnknown = true
 		case "force_encode":
 			tag.forceEncode = true
+		case "full_replace":
+			tag.fullReplace = true
 		default:
 			if group, ok := strings.CutPrefix(part, "atomic_group="); ok {
 				tag.atomicGroup = group

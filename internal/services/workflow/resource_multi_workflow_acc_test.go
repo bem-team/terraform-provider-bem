@@ -12,10 +12,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// testAccFunctionConfig declares a single split function, matching the
-// shape of the real bem-customer Atmos component (components/terraform/infra/bem-customer/v0.0.1/main.tf)
-// - the exact resource shape a customer hand-writes, not the internal
-// for_each abstraction bem-workflows uses.
+// testAccFunctionConfig declares a single split function: the resource shape a
+// practitioner hand-writes in a .tf file, rather than a for_each-driven module
+// that generates them.
 func testAccFunctionConfig(functionName, displayName string) string {
 	return fmt.Sprintf(`
 resource "bem_function" "splitter" {
@@ -35,12 +34,11 @@ resource "bem_function" "splitter" {
 }
 
 // testAccWorkflowNodeBlock is the node block every workflow below shares:
-// pinned to the shared function's current version_num, exactly like opto's
-// real trigger (extract_schedule_of_investments / Simons-Example-for-Terraform)
-// - not the weaker id-only reference bem-customer's main.tf originally had,
-// which turned out not to reproduce BEM-1392 at all (Terraform resolves the
-// unknown function_id during apply and finds it unchanged, so the workflow
-// update never fires).
+// pinned to the shared function's current version_num, matching the
+// configuration in the report that opened BEM-1392 - not the weaker id-only
+// reference first used when trying to reproduce it, which turned out not to
+// reproduce BEM-1392 at all (Terraform resolves the unknown function_id during
+// apply and finds it unchanged, so the workflow update never fires).
 const testAccWorkflowNodeBlock = `
   nodes = [
     {
@@ -142,8 +140,8 @@ func testAccCheckWorkflowNodeVersionMatchesFunction(workflowName, functionName s
 }
 
 // TestAccWorkflowResource_FunctionVersionBumpUpdatesDAG is the direct
-// regression test for BEM-1392, matching the scenario confirmed live
-// against stg-ue1-sr-0001's bem-customer component:
+// regression test for BEM-1392, matching the scenario confirmed live against a
+// staging environment:
 //
 //  1. Create a function and a workflow whose sole node pins that function's
 //     version_num.
@@ -198,7 +196,7 @@ func TestAccWorkflowResource_FunctionVersionBumpUpdatesDAG(t *testing.T) {
 // the same apply - each bem_workflow.Update() call is an independent HTTP
 // request with its own plan/state pair, so the atomic-group fix runs once
 // per call with no cross-resource coordination needed. This is the "one
-// function, many customer workflows" case opto's real usage represents.
+// function, many workflows" case the original report represents.
 func TestAccWorkflowResource_SharedFunctionAcrossTwoWorkflows(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")

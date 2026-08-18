@@ -103,9 +103,9 @@ func TestAtomicGroup_UntaggedFieldChange_DoesNotTriggerGroup(t *testing.T) {
 // null, and null deserializes server-side to the same nil pointer an absent
 // key does - so the group looks partial to the API's present-key count and
 // still 400s, despite all three keys literally appearing in the body.
-// Confirmed against platform/protocol/workflow.go's WorkflowUpdateRequestV3,
-// where Edges is *[]WorkflowEdgeRequest and the validator counts non-nil
-// pointers, not present keys.
+// Confirmed against the API: it treats an explicit null the same as an absent
+// key for this group, because its validation counts values it actually received
+// rather than keys present in the body.
 func TestAtomicGroup_ClearedListMember_SendsEmptyArrayNotNull(t *testing.T) {
 	plan, state := atomicGroupFixture()
 	state.Edges = &[]*AtomicGroupEdge{{SourceNodeName: types.StringValue("splitter")}}

@@ -77,9 +77,10 @@ type encoderField struct {
 	fn  encoderFunc
 	idx []int
 	// noPatchFn re-encodes this field ignoring plan/state equality - only built
-	// when tag.atomicGroup is set. Used to force this field into the output
-	// when a sibling in the same atomic group changed but this field, taken on
-	// its own, didn't.
+	// when tag.atomicGroup or tag.fullReplace is set. atomicGroup uses it to
+	// force this field into the output when a sibling in the same group changed
+	// but this field, taken on its own, didn't; fullReplace uses it for every
+	// encode, so an unchanged block is still emitted whole.
 	noPatchFn encoderFunc
 }
 
@@ -695,7 +696,7 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 				}
 			}
 			ecf := encoderField{tag: ptag, fn: fieldEnc.typeEncoder(field.Type), idx: idx}
-			if ptag.atomicGroup != "" {
+			if ptag.atomicGroup != "" || ptag.fullReplace {
 				ecf.noPatchFn = fieldEnc.withPatch(false).typeEncoder(field.Type)
 			}
 			encoderFields = append(encoderFields, ecf)
@@ -727,7 +728,15 @@ func (e *encoder) newStructTypeEncoder(t reflect.Type, isRoot bool) encoderFunc 
 			}
 
 			planField = resolvePlanField(planField, stateField, ef.tag)
-			encoded, err := ef.fn(planField, stateField)
+			// A full_replace field is encoded through its non-patch encoder, so
+			// an unchanged-but-set value still comes out whole instead of being
+			// diffed away. A null/unset value still encodes to nil below and is
+			// omitted as usual - this forces completeness, not presence.
+			fn := ef.fn
+			if ef.tag.fullReplace && e.patch {
+				fn = ef.noPatchFn
+			}
+			encoded, err := fn(planField, stateField)
 			if err != nil {
 				return nil, err
 			}
