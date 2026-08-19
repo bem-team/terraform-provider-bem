@@ -71,5 +71,13 @@ jobs:
       - name: Bootstrap
         run: ./scripts/bootstrap
 
+      # -race is required, not optional. internal/apijson is shared,
+      # concurrently-invoked codegen infrastructure that every resource's
+      # Create/Update marshaling routes through, so a change there can pass
+      # `go test ./...` cleanly while hiding a data race that only appears
+      # under real concurrent use - BEM-1367's corrupted ~99/100 calls under
+      # -race and never once without it, and reached a release because CI
+      # didn't run it. Acceptance tests stay skipped here (TF_ACC is unset);
+      # they need a staging key and create real resources.
       - name: Run tests
-        run: ./scripts/test
+        run: ./scripts/test -race
