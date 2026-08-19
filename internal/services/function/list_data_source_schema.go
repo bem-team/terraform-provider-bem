@@ -360,7 +360,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 							Computed:    true,
 						},
 						"destination_type": schema.StringAttribute{
-							Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
+							Description: "Where the payload is delivered.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
 							Computed:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOfCaseInsensitive(
@@ -658,7 +658,7 @@ func ListDataSourceSchema(ctx context.Context) schema.Schema {
 											Computed:    true,
 										},
 										"placeholders": schema.SingleNestedAttribute{
-											Description: "The placeholder contract a Render template declares, grouped by how each\nplaceholder is filled. Derived from the template at create/update time by\nscanning its `docxtpl` tags; not user-supplied.\n\n- `stringKeys`: bare string placeholders (`{{ key }}`) filled with a single\nvalue.\n- `blockKeys`: wrapped-primitive placeholders (`{{p key }}`) — bind one core\nprimitive (paragraph, table, image, or list). The placeholder's own\nparagraph dissolves and is replaced by the rendered subdocument's blocks,\nrather than substituting text inline.",
+											Description: "The placeholder contract derived from the template at create/update time.\nAbsent on configs created before create/update-time validation existed.",
 											Computed:    true,
 											CustomType:  customfield.NewNestedObjectType[FunctionsRenderConfigTemplatePlaceholdersDataSourceModel](ctx),
 											Attributes: map[string]schema.Attribute{

@@ -57,14 +57,14 @@ func DataSourceSchema(ctx context.Context) schema.Schema {
 									Computed:    true,
 								},
 								"type": schema.StringAttribute{
-									Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+									Description: "Connector type.\nAvailable values: \"paragon\".",
 									Computed:    true,
 									Validators: []validator.String{
 										stringvalidator.OneOfCaseInsensitive("paragon"),
 									},
 								},
 								"paragon": schema.SingleNestedAttribute{
-									Description: "Paragon-integration configuration on a workflow connector.",
+									Description: "Paragon configuration. Present iff `type == \"paragon\"`.",
 									Computed:    true,
 									CustomType:  customfield.NewNestedObjectType[WorkflowWorkflowConnectorsParagonDataSourceModel](ctx),
 									Attributes: map[string]schema.Attribute{

@@ -107,8 +107,6 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	params := bem.FunctionUpdateParams{}
-
 	dataBytes, err := data.MarshalJSONForUpdate(*state)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to serialize http request", err.Error())
@@ -117,8 +115,8 @@ func (r *FunctionResource) Update(ctx context.Context, req resource.UpdateReques
 	res := new(http.Response)
 	_, err = r.client.Functions.Update(
 		ctx,
-		data.PathFunctionName.ValueString(),
-		params,
+		data.FunctionName.ValueString(),
+		bem.FunctionUpdateParams{},
 		option.WithRequestBody("application/json", dataBytes),
 		option.WithResponseBodyInto(&res),
 		option.WithMiddleware(logging.Middleware(ctx)),

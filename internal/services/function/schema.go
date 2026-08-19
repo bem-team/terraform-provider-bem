@@ -33,10 +33,6 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 			},
-			"path_function_name": schema.StringAttribute{
-				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-			},
 			"function_name": schema.StringAttribute{
 				Description: "Name of function. Must be UNIQUE on a per-environment basis.",
 				Required:    true,
@@ -63,7 +59,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				Optional:    true,
 			},
 			"destination_type": schema.StringAttribute{
-				Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
+				Description: "Where the payload is delivered.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
 				Optional:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -231,7 +227,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 				},
 			},
 			"render_config": schema.SingleNestedAttribute{
-				Description: "Request-side render configuration. Carries the template document as\nbase64-encoded `.docx` bytes: the server validates them, stores the template,\nand derives the placeholder/style-id contract at create/update time, so\nclients never submit `placeholders` or `styleIds`. The response shape\n(`RenderConfig`) returns the derived contract.",
+				Description: "Render configuration. Required at create time — a Render function\nwithout a template has nothing to bind data to. Update bodies may\nomit this for partial edits.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"template": schema.SingleNestedAttribute{
@@ -703,7 +699,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 						Computed:    true,
 					},
 					"destination_type": schema.StringAttribute{
-						Description: "Destination type for a Send function.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
+						Description: "Where the payload is delivered.\nAvailable values: \"webhook\", \"s3\", \"google_drive\".",
 						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.OneOfCaseInsensitive(
@@ -1008,7 +1004,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 										Computed:    true,
 									},
 									"placeholders": schema.SingleNestedAttribute{
-										Description: "The placeholder contract a Render template declares, grouped by how each\nplaceholder is filled. Derived from the template at create/update time by\nscanning its `docxtpl` tags; not user-supplied.\n\n- `stringKeys`: bare string placeholders (`{{ key }}`) filled with a single\nvalue.\n- `blockKeys`: wrapped-primitive placeholders (`{{p key }}`) — bind one core\nprimitive (paragraph, table, image, or list). The placeholder's own\nparagraph dissolves and is replaced by the rendered subdocument's blocks,\nrather than substituting text inline.",
+										Description: "The placeholder contract derived from the template at create/update time.\nAbsent on configs created before create/update-time validation existed.",
 										Computed:    true,
 										CustomType:  customfield.NewNestedObjectType[FunctionFunctionRenderConfigTemplatePlaceholdersModel](ctx),
 										Attributes: map[string]schema.Attribute{

@@ -8,12 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/tidwall/sjson"
 )
 
 type FunctionModel struct {
 	ID                      types.String                                    `tfsdk:"id" json:"-,computed"`
-	PathFunctionName        types.String                                    `tfsdk:"path_function_name" path:"functionName,optional"`
 	FunctionName            types.String                                    `tfsdk:"function_name" json:"functionName,required,no_refresh"`
 	Type                    types.String                                    `tfsdk:"type" json:"type,required,no_refresh"`
 	Description             types.String                                    `tfsdk:"description" json:"description,optional,no_refresh"`
@@ -49,11 +47,7 @@ func (m FunctionModel) MarshalJSON() (data []byte, err error) {
 }
 
 func (m FunctionModel) MarshalJSONForUpdate(state FunctionModel) (data []byte, err error) {
-	data, err = apijson.MarshalForPatch(m, state)
-	if err != nil {
-		return nil, err
-	}
-	return sjson.SetBytes(data, "functionName", m.FunctionName.ValueString())
+	return apijson.MarshalForPatch(m, state)
 }
 
 type FunctionClassificationsModel struct {

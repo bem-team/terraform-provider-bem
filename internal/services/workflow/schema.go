@@ -91,7 +91,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 							Required:    true,
 						},
 						"type": schema.StringAttribute{
-							Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+							Description: "Connector type. Must match stored type on update.\nAvailable values: \"paragon\".",
 							Required:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOfCaseInsensitive("paragon"),
@@ -102,7 +102,7 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 							Optional:    true,
 						},
 						"paragon": schema.SingleNestedAttribute{
-							Description: "Request-side config block for a Paragon connector. Fields absent on update are unchanged.",
+							Description: "Paragon configuration. Required on create for `type: \"paragon\"`.",
 							Optional:    true,
 							Attributes: map[string]schema.Attribute{
 								"configuration": schema.StringAttribute{
@@ -333,14 +333,14 @@ func ResourceSchema(ctx context.Context) schema.Schema {
 									Computed:    true,
 								},
 								"type": schema.StringAttribute{
-									Description: "Discriminator for a workflow connector. V3 supports `paragon` only.\nAvailable values: \"paragon\".",
+									Description: "Connector type.\nAvailable values: \"paragon\".",
 									Computed:    true,
 									Validators: []validator.String{
 										stringvalidator.OneOfCaseInsensitive("paragon"),
 									},
 								},
 								"paragon": schema.SingleNestedAttribute{
-									Description: "Paragon-integration configuration on a workflow connector.",
+									Description: "Paragon configuration. Present iff `type == \"paragon\"`.",
 									Computed:    true,
 									CustomType:  customfield.NewNestedObjectType[WorkflowWorkflowConnectorsParagonModel](ctx),
 									Attributes: map[string]schema.Attribute{
