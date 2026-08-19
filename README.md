@@ -22,7 +22,7 @@ terraform {
   required_providers {
     bem = {
       source  = "bem-team/bem"
-      version = "~> 0.14.1"
+      version = "~> 0.15.0"
     }
   }
 }
