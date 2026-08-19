@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/bem-team/terraform-provider-bem/compare/v0.14.1...v0.15.0) (2026-08-19)
+
+
+### Features
+
+* initial stlc build ([af32a9b](https://github.com/bem-team/terraform-provider-bem/commit/af32a9b5aaa36b32ab59a51cc32834bceb14e016))
+
 ## 0.14.1 (2026-08-18)
 
 Full Changelog: [v0.14.0...v0.14.1](https://github.com/bem-team/terraform-provider-bem/compare/v0.14.0...v0.14.1)
